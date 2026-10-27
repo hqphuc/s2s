@@ -1,0 +1,84 @@
+name: Auto Build Android APK
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch: # Cho phép bấm nút chạy thủ công bất cứ lúc nào
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. Tải mã nguồn từ kho chứa
+        uses: actions/checkout@v4
+
+      - name: 2. Cài đặt Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 3. Cài đặt Java JDK 17 (Bắt buộc cho Gradle của Android)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: 4. Chuẩn bị thư mục web và cài đặt Capacitor
+        run: |
+          mkdir -p www
+          cp index.html www/
+          npm install
+
+      - name: 5. Khởi tạo khung ứng dụng Android tự động
+        run: |
+          npx cap init "ScreenMirror" "com.p2p.mirror" --web-dir www
+          npx cap add android
+          npx cap sync android
+
+      - name: 6. Tự động bơm quyền quay màn hình vào AndroidManifest.xml
+        run: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          PERMS='<uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />'
+          sed -i "s|<application|$PERMS\n    <application|g" "$MANIFEST"
+
+      - name: 7. Tự động mở khóa quyền WebRTC trong MainActivity.java
+        run: |
+          cat << 'EOF' > android/app/src/main/java/com/p2p/mirror/MainActivity.java
+          package com.p2p.mirror;
+
+          import android.os.Bundle;
+          import android.webkit.PermissionRequest;
+          import android.webkit.WebChromeClient;
+          import com.getcapacitor.BridgeActivity;
+
+          public class MainActivity extends BridgeActivity {
+              @Override
+              public void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+              }
+
+              @Override
+              public void onStart() {
+                  super.onStart();
+                  this.bridge.getWebView().setWebChromeClient(new WebChromeClient() {
+                      @Override
+                      public void onPermissionRequest(final PermissionRequest request) {
+                          request.grant(request.getResources());
+                      }
+                  });
+              }
+          }
+          EOF
+
+      - name: 8. Biên dịch ra file APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: 9. Đóng gói file APK để tải về
+        uses: actions/upload-artifact@v4
+        with:
+          name: ScreenMirror-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
