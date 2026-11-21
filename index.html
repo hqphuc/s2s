@@ -1,114 +1,429 @@
 <!DOCTYPE html>
-<!-- Created with iSpring --><!-- 1582 824 --><!--version 10.0.4.12011 --><!--type html --><!--mainFolder ./ -->
-<html style=background-color:#ced1d3;>
+<html lang="vi">
 <head>
-    <meta http-equiv="Content-Type" content="text/html;charset=utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no"/><meta name="format-detection" content="telephone=no"/><meta name="apple-mobile-web-app-capable" content="yes"/><meta name="apple-mobile-web-app-status-bar-style" content="black"/><meta http-equiv="X-UA-Compatible" content="IE=edge"/><meta name="msapplication-tap-highlight" content="no"/><title>game-keyboard</title><link rel="apple-touch-icon-precomposed" href="data/apple-touch-icon.png"/><link rel="shortcut icon" type="image/ico" href="data/favicon.ico"/><style>body {background-color:#ced1d3;}#spr0_60659c {display:none;}</style>
-    
-    
-    <style>
-		#playerView {
-			position:absolute;
-			-webkit-tap-highlight-color:rgba(0,0,0,0);
-			-webkit-user-select:none;
-			-moz-user-select:none;
-			-webkit-touch-callout:none;
-			-webkit-user-drag:none;
-		}
-		#playerView * {
-			position:absolute;
-		}
-		#preloader {
-			width: 50px;
-			height: 50px;
-			position: absolute;
-			top: 0;
-			left: 0;
-			bottom: 0;
-			right: 0;
-			margin: auto;
-			border-radius: 10px;
-			background-color: rgba(0, 0, 0, 0.5);
-		}
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ShareRoom – Chia sẻ màn hình</title>
+<!--
+=====================================================================
+ SHAREROOM – chia sẻ màn hình / camera kiểu Google Meet (1 file duy nhất)
+=====================================================================
+ CÁCH HOẠT ĐỘNG
+ - Công nghệ: WebRTC (truyền hình/tiếng trực tiếp giữa các thiết bị).
+   PeerJS chỉ dùng để "bắt tay" ban đầu qua mã phòng, video đi thẳng P2P.
+ - Thiết bị CHIA SẺ (đúng 1 thiết bị) tạo phòng, nhận mã 6 ký tự.
+ - Thiết bị XEM nhập mã -> nối vào phòng và nhận hình/tiếng.
+ - Mỗi người xem = 1 luồng upload riêng từ máy chia sẻ (mô hình mesh/star).
 
-		#preloader::after {
-			content: '';
-			position: absolute;
-			background: url(data:image/png;base64,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UmVhZHlxyWU8AAADcmlUWHRYTUw6Y29tLmFkb2JlLnhtcAAAAAAAPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQiPz4gPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iQWRvYmUgWE1QIENvcmUgNS42LWMwNjcgNzkuMTU3NzQ3LCAyMDE1LzAzLzMwLTIzOjQwOjQyICAgICAgICAiPiA8cmRmOlJERiB4bWxuczpyZGY9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkvMDIvMjItcmRmLXN5bnRheC1ucyMiPiA8cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0iIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RSZWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZVJlZiMiIHhtbG5zOnhtcD0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wLyIgeG1wTU06T3JpZ2luYWxEb2N1bWVudElEPSJ4bXAuZGlkOmFjOGVjNDFhLTZkYWItODQ0Ni04YzkzLWU1Mjk3N2YwMmE4NSIgeG1wTU06RG9jdW1lbnRJRD0ieG1wLmRpZDpFRThCNzU3NDYzNjcxMUU1QTZDRUE5NTVGOUJGQ0E3MCIgeG1wTU06SW5zdGFuY2VJRD0ieG1wLmlpZDpFRThCNzU3MzYzNjcxMUU1QTZDRUE5NTVGOUJGQ0E3MCIgeG1wOkNyZWF0b3JUb29sPSJBZG9iZSBQaG90b3Nob3AgQ0MgMjAxNSAoV2luZG93cykiPiA8eG1wTU06RGVyaXZlZEZyb20gc3RSZWY6aW5zdGFuY2VJRD0ieG1wLmlpZDo0OWFlZmI1OC00ZWFmLWQ3NDgtYTI0ZS0zNmNhNGQ2M2QwNTYiIHN0UmVmOmRvY3VtZW50SUQ9InhtcC5kaWQ6N0MwQkFBM0M2MjAxMTFFNUI4QjBERTk4MjY5MjQwQjUiLz4gPC9yZGY6RGVzY3JpcHRpb24+IDwvcmRmOlJERj4gPC94OnhtcG1ldGE+IDw/eHBhY2tldCBlbmQ9InIiPz6MGSVVAAAE3klEQVR42uycW4hWVRiG15Q4eYzGQySSQlriEQ9BF2mE4iSdESRRIb0RD+mNmHgICjqQEGUe6sqgCy1i0iRinAzELrooQhHLGQURUTzMiM7omCLj+/F/czX/t/890z6s9e/3hZcZ1l6z19r7mXXca62arq4uR/mjh/gKCIQiEAKhCIRAKAIhEIpACIQiEIpACIQiEAKhCIRAKAIhEMoX9Yu62NbWxjcUobq6OpaQQpcQz/QwPBOeDU+Fx8Oj4UfhoRrnJnwDvgC3wCfgY/Bf8P0QHrImahmQB1VWLfwGvAieqy+/LxJIR+Dv4QPwf75WWb4CGQavg9fo70mqFd4F79DfCSRCA+HN8Hp4cMppdcBfwB/Bt9mo99Sr8Cl4SwYwnKYhaf2jaXMconoE/hL+CR6TQ/pPato7NS+FbtSfgH+Gp8eMfwv+HT6qpakZvqzVT/d//ePw0/BEeI72ygbFvP/f8MvwpSK2IfLSGuGxFeJ1aby98CG4s5fpDNAqaTlcL89cIf45jddcpDZknI4PKsFo0NKzQLusnX1Iq1P/doHe60CF+GM1b+OK0obIYO5XeGREnLPwfHghfDzBtOVeb+q9z0bEG6njltHVDqQ2RuP9HTwDbkoxH02axv4YjX1tNQP5LKIBl7ZiK/yWToGkLUljsaZpNaTTNc9VCeR1eHUEjHfgD3OoQiXNVRFQVmveqwrIEHh3xPXNOp2Rl77WPFiSvA+tJiCb4FHGNanHP/FggCp52Gdck7y/Wy0Dw2Hatx9s9KZmZNRmxC3JMjh8qsy1Du0St4Y+DomaKFzlEQxRu+apnOQZ1oVeZfWPeMCGlLu2/6dL3BDRwPcPGYiMjocbvaoPnL963+h1DddnChbIMiP8cMIj8KQln34be/lM3gOREW69cW2v81/fGOH1aY7e0wTyrNGYyxT6wQCAHNS8lmvcZ4UIZL4RLt8z7gQA5I7mtZyeCxHIS0b4UReOrLw+EyIQqxScDAiIldcJIQLZYTTmvwUEpMUIHxMikB/gta40PXIF/lwHVrcCAnLVCH8srQR9X7mYt2RUbq1yrOFia390N9SReugaYoR3EEg+GmGEtxNIPhpvhJ8nkHw02Qj/l0Dy0Rwj/DSBZC9ZeD3buPYHgWSv11z5RdrSw/qTQLLX20Z4o0toSxyBxJdsKrVmq79NM2ECKa/3XPltC9fgXwgkW81zpVX35fSVS3HahEB6SqZK9hjXujeJOgLJTrLG19qos1OrLALJSLL+eLFx7SL8cRaZIJCSVrrSfnVL8qHtJoFkoy3ablibQeWz849ZZaZfgUHIfg/Z97EkIs5xLR2OQNLv2u5x0Ttt5UShV1wfj91glRVP01xp8UVTBRiyuOFFheJYQpKVzNrKwQErXPyDA2SF+5k8MhsykCnwPdfzaA3ZYy6nREyCX4Cfd/EPs+nV0RoEUlqWsx1eCie9Bkc2nW5wOa87Dg3Ipy75bWXntSd1yIcHDK1RT3KzTIcOBif6AqOo3d42HX/I0tZW3zIXWgnp68chmfaQjZxyoKac0bXNRxghlpCN2m1dpj/btXEfpD0uqYaua89Luq3dx8TKN3AeE1vt4mLrAohACIQiEAKhCIRAKAIhEIpACq7IqROKJYRA+AoIhCIQAqEIhEAoAiEQikCKrQcCDABHPgH2w7NQdAAAAABJRU5ErkJggg==);
-			background-size: cover;
-			top: 0;
-			left: 0;
-			bottom: 0;
-			right: 0;
-			animation: preloader_spin 1s infinite linear;
-			-webkit-animation: preloader_spin 1s infinite linear;
-		}
+ SỐ THIẾT BỊ XEM TỐI ĐA: hằng số MAX_VIEWERS bên dưới (mặc định 4).
+   Lý do: máy chia sẻ phải gửi video cho TỪNG người xem. Màn hình ~2.5 Mbps
+   + camera ~0.7 Mbps => 4 người ≈ 13 Mbps upload. Mạng khỏe có thể tăng
+   lên 6–8; muốn hàng chục người xem cần máy chủ SFU (LiveKit, mediasoup…).
 
-		@keyframes preloader_spin { 0% {transform: rotate(0deg);} 100% {transform: rotate(360deg);} }
-		@-webkit-keyframes preloader_spin { 0% {-webkit-transform: rotate(0deg);} 100% {-webkit-transform: rotate(360deg);}}
-    </style>
+ YÊU CẦU TRIỂN KHAI
+ - Phải chạy trên HTTPS (hoặc localhost) thì trình duyệt mới cho chia sẻ.
+   Kéo-thả file này lên Netlify / Vercel / Cloudflare Pages / GitHub Pages.
+ - Điện thoại: trình duyệt di động KHÔNG hỗ trợ chia sẻ màn hình (giới hạn
+   của iOS/Android). Site tự phát hiện và cho chia sẻ CAMERA + MICRO
+   (có nút đổi camera trước/sau). Máy tính xem bình thường.
+ - Mạng 4G/công ty có thể chặn P2P: thêm máy chủ TURN vào ICE_CONFIG.
+ - PeerJS Cloud miễn phí phù hợp thử nghiệm; sản phẩm thật nên tự dựng
+   PeerServer riêng (new Peer({host, port, path})).
+=====================================================================
+-->
+<style>
+/* ===== 1. BẢNG MÀU & NỀN TẢNG (giao diện sáng, riêng khung xem tối) ===== */
+:root{--bg:#f4f5f2;--ink:#18212b;--mut:#5f6b76;--line:#d9ddd6;--card:#fff;
+  --blue:#0b63c5;--blue-d:#094d9b;--live:#d6362b;--stage:#0b0d10}
+*{box-sizing:border-box;margin:0}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+button{font:inherit;cursor:pointer;border:0;color:inherit;background:none}
+button:focus-visible,input:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+/* mỗi "view" là một màn hình; chỉ view .active được hiện */
+.view{display:none;flex-direction:column;height:100dvh}
+.view.active{display:flex}
+.bar{display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--card);border-bottom:1px solid var(--line)}
+.ghost{padding:8px 12px;border-radius:10px;background:#eceee9}
+.ghost:hover{background:#e0e3dc}
+.big{display:flex;flex-direction:column;align-items:center;gap:2px;width:100%;padding:18px;border-radius:16px;
+  font-weight:700;font-size:1.15rem;background:var(--card);border:2px solid var(--line)}
+.big small{font-weight:400;font-size:.85rem;color:var(--mut)}
+.big.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.big.primary small{color:#d7e6fa}
+.big.primary:hover{background:var(--blue-d)}
+.big:disabled{opacity:.45;cursor:not-allowed}
+#toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;
+  border-radius:10px;z-index:99;max-width:90vw;display:none}
+
+/* ===== 2. TRANG CHỦ: 2 nút CHIA SẺ / XEM CHIA SẺ ===== */
+.hero{margin:auto;width:min(460px,92vw);text-align:center;display:grid;gap:14px}
+.hero h1{font-size:2.2rem;letter-spacing:-.02em}
+.hero .sub{color:var(--mut);margin-bottom:10px}
+.warn{background:#fff3cd;border-radius:10px;padding:10px;font-size:.9rem}
+
+/* ===== 3. MÀN HÌNH CHỌN HÌNH THỨC CHIA SẺ ===== */
+.panel{width:min(520px,94vw);margin:20px auto;display:grid;gap:10px}
+.opt{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;cursor:pointer}
+.opt.sub{margin-left:28px;padding:10px 14px}
+.opt .tx{flex:1;display:flex;flex-direction:column}
+.opt small{color:var(--mut)}
+.opt .ic{font-size:1.5rem}
+.opt.off{opacity:.5}
+/* công tắc bật/tắt */
+.sw{appearance:none;width:46px;height:26px;border-radius:13px;background:#c4cac1;position:relative;cursor:pointer;flex:none;transition:background .15s}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .15s}
+.sw:checked{background:var(--blue)}
+.sw:checked::after{transform:translateX(20px)}
+.sw:disabled{cursor:not-allowed}
+.note{font-size:.88rem;color:var(--mut)}
+
+/* ===== 4. KHUNG HÌNH (dùng chung cho máy chia sẻ & máy xem) ===== */
+.stagebox{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:var(--stage);position:relative}
+.stage{position:relative;background:#000}              /* kích thước do JS fit() tính theo tỉ lệ video */
+.stage .main{width:100%;height:100%;object-fit:contain;display:block}
+.stage .cam{position:absolute;aspect-ratio:4/3;object-fit:cover;border-radius:12px;border:2px solid rgba(255,255,255,.7);
+  box-shadow:0 6px 20px rgba(0,0,0,.5);background:#222}
+.stage.drag .cam{cursor:grab;touch-action:none}          /* chỉ máy chia sẻ mới kéo được */
+/* chỉ chia sẻ camera: camera phủ toàn khung, ẩn video màn hình */
+.stage.camonly .main{display:none}
+.stage.camonly .cam{inset:0;left:0!important;top:0!important;width:100%!important;height:100%;transform:none!important;
+  aspect-ratio:auto;object-fit:contain;border:0;border-radius:0;pointer-events:none}
+
+/* ===== 5. PHÒNG CHIA SẺ: mã phòng, điều khiển camera, thanh công cụ ===== */
+.code{font-size:1.6rem;font-weight:800;letter-spacing:.18em;font-variant-numeric:tabular-nums}
+.live{display:inline-flex;align-items:center;gap:6px;color:var(--live);font-weight:700}
+.live::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--live)}
+.pill{margin-left:auto;background:#eceee9;border-radius:99px;padding:6px 12px;font-weight:600}
+.camctl{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 14px;background:var(--card);border-top:1px solid var(--line)}
+.camctl button{padding:6px 10px;border-radius:8px;background:#eceee9}
+.camctl input[type=range]{flex:1;min-width:90px}
+.toolbar{display:flex;justify-content:center;align-items:center;gap:12px;padding:12px;background:var(--card);border-top:1px solid var(--line)}
+.rb{width:50px;height:50px;border-radius:50%;background:#eceee9;font-size:1.3rem}
+.rb.off{background:var(--live);color:#fff}
+.rb.stop{width:auto;border-radius:25px;padding:0 20px;background:var(--live);color:#fff;font-size:1rem;font-weight:700}
+.meter{width:70px;height:8px;border-radius:4px;background:#dde0da;overflow:hidden}
+.meter i{display:block;height:100%;width:0;background:var(--blue);transition:width .1s}
+
+/* ===== 6. MÀN HÌNH NHẬP MÃ & XEM ===== */
+.codein{width:100%;padding:16px;font-size:2rem;text-align:center;letter-spacing:.3em;font-weight:800;text-transform:uppercase;
+  border:2px solid var(--line);border-radius:14px;background:var(--card)}
+.err{color:var(--live);min-height:1.4em}
+.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;
+  color:#fff;text-align:center;padding:20px;z-index:5}
+.overlay.dim{background:rgba(0,0,0,.6)}
+.overlay button{background:var(--blue);padding:12px 22px;border-radius:12px;font-weight:700;color:#fff}
+</style>
 </head>
 <body>
-	<div id="preloader"></div>
-	<script src="data/browsersupport.js?A4E6EACF"></script>
-	<script src="data/player.js?A4E6EACF"></script>
-    <div id="content"></div>
-    <div id="spr0_60659c"></div>
-    <script>
-		(function(startup){
-			function start(savedPresentationState)
-			{
-				var presInfo = "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";
-				PresentationPlayer.start(presInfo, "content", "playerView", onPlayerInit, savedPresentationState);
-				function onPlayerInit(player)
-				{
-					(function(player){
-	(function(player)
-{
-	function findConnector(win)
-	{
-		var retries = 0;
-		while (!win.ispringPresentationConnector && win.parent && win.parent != win)
-		{
-			++retries;
-			if (retries > 7)
-			{
-				return null;
-			}
+<div id="toast"></div>
 
-			win = win.parent;
-		}
-		return win.ispringPresentationConnector;
-	}
+<!-- ===== TRANG CHỦ: chọn vai trò ===== -->
+<section id="home" class="view active">
+  <div class="hero">
+    <h1>ShareRoom</h1>
+    <p class="sub">Chia sẻ màn hình hoặc camera trực tiếp, không cần cài đặt.</p>
+    <button class="big primary" id="btnShare">CHIA SẺ<small>Thiết bị phát – chỉ 1 thiết bị</small></button>
+    <button class="big" id="btnView">XEM CHIA SẺ<small>Nhập mã phòng – tối đa <span class="maxv"></span> thiết bị cùng xem</small></button>
+    <p class="warn" id="envWarn" hidden>Trang chưa chạy HTTPS nên chỉ có thể xem. Hãy mở bằng https:// để chia sẻ.</p>
+  </div>
+</section>
 
-	function getConnector()
-	{
-		var api = findConnector(window);
-		if (!api && window.opener && (typeof(window.opener) != "undefined"))
-		{
-			api = findConnector(window.opener);
-		}
-		return api;
-	}
+<!-- ===== THIẾT BỊ CHIA SẺ – BƯỚC 1: chọn hình thức chia sẻ ===== -->
+<section id="setup" class="view">
+  <header class="bar"><button class="ghost" data-home>← Quay lại</button><b>Chọn nội dung chia sẻ</b></header>
+  <div class="panel">
+    <label class="opt" id="oScreen"><span class="ic">🖥️</span>
+      <span class="tx"><b>Hình ảnh màn hình</b><small id="screenHint">Toàn màn hình, một cửa sổ hoặc một tab</small></span>
+      <input type="checkbox" class="sw" id="cScreen" checked></label>
+    <label class="opt sub" id="oSys"><span class="tx"><b>Kèm âm thanh máy</b><small>Tiếng từ tab/hệ thống (Chrome, Edge hỗ trợ tốt nhất)</small></span>
+      <input type="checkbox" class="sw" id="cSys" checked></label>
+    <label class="opt"><span class="ic">📷</span>
+      <span class="tx"><b>Camera</b><small>Hiện trong khung nhỏ, kéo để đổi vị trí khi đang chia sẻ</small></span>
+      <input type="checkbox" class="sw" id="cCam"></label>
+    <label class="opt"><span class="ic">🎤</span>
+      <span class="tx"><b>Micro</b><small>Giọng nói của bạn</small></span>
+      <input type="checkbox" class="sw" id="cMic"></label>
+    <p class="note" id="setupNote"></p>
+    <button class="big primary" id="btnStart">Bắt đầu chia sẻ</button>
+  </div>
+</section>
 
-	var connector = getConnector();
-	if (connector)
-	{
-		connector.register(player);
-	}
-})(player);
+<!-- ===== THIẾT BỊ CHIA SẺ – BƯỚC 2: phòng đang phát, hiện mã phòng ===== -->
+<section id="room" class="view">
+  <header class="bar">
+    <span class="live">Đang chia sẻ</span>
+    <span>Mã phòng</span><span class="code" id="code">······</span>
+    <button class="ghost" id="copyCode">Sao chép mã</button>
+    <button class="ghost" id="copyLink">Sao chép link</button>
+    <span class="pill">👥 <span id="cnt">0</span>/<span class="maxv"></span></span>
+  </header>
+  <main class="stagebox" id="hostBox"></main>
+  <!-- chỉnh vị trí/kích thước khung camera (chỉ hiện khi chia sẻ màn hình + camera) -->
+  <div class="camctl" id="camCtl" hidden>
+    <span>Vị trí camera:</span>
+    <button data-pos=".02,.03">↖</button><button data-pos=".98,.03">↗</button>
+    <button data-pos=".02,.97">↙</button><button data-pos=".98,.97">↘</button>
+    <span>Cỡ:</span><input type="range" id="sizeR" min="12" max="45" value="24" aria-label="Kích thước camera">
+    <span class="note">hoặc kéo khung camera trên hình</span>
+  </div>
+  <footer class="toolbar">
+    <button class="rb" id="btnMic" title="Bật/tắt micro" hidden>🎤</button>
+    <span class="meter" id="meter" hidden><i id="meterBar"></i></span>
+    <button class="rb" id="btnCam" title="Bật/tắt camera" hidden>📷</button>
+    <button class="rb" id="btnFlip" title="Đổi camera trước/sau" hidden>🔄</button>
+    <button class="rb stop" id="btnStop">Dừng chia sẻ</button>
+  </footer>
+</section>
 
-})(player);
+<!-- ===== THIẾT BỊ XEM – BƯỚC 1: nhập mã phòng ===== -->
+<section id="join" class="view">
+  <header class="bar"><button class="ghost" data-home>← Quay lại</button><b>Xem chia sẻ</b></header>
+  <div class="panel">
+    <p>Nhập mã phòng gồm 6 ký tự do người chia sẻ cung cấp.</p>
+    <input class="codein" id="codeIn" maxlength="6" placeholder="ABC123" autocomplete="off" autocapitalize="characters" inputmode="text" aria-label="Mã phòng">
+    <p class="err" id="joinErr" role="alert"></p>
+    <button class="big primary" id="btnJoin">Vào xem</button>
+  </div>
+</section>
 
-					var preloader = document.getElementById("preloader");
-					preloader.parentNode.removeChild(preloader);
-				}
-			}
+<!-- ===== THIẾT BỊ XEM – BƯỚC 2: khung xem ===== -->
+<section id="watch" class="view">
+  <header class="bar">
+    <span class="live">Trực tiếp</span><b id="wCode"></b>
+    <span style="flex:1"></span>
+    <button class="ghost" id="btnMute">🔊 Âm thanh</button>
+    <button class="ghost" id="btnFull">⛶ Toàn màn hình</button>
+    <button class="ghost" id="btnLeave">Rời phòng</button>
+  </header>
+  <main class="stagebox" id="viewBox">
+    <div class="overlay" id="waiting">Đang kết nối tới phòng…</div>
+    <div class="overlay dim" id="tap" hidden><span>Trình duyệt đang chặn tiếng.</span><button id="btnTap">Bấm để xem có tiếng</button></div>
+  </main>
+</section>
 
-			if (startup)
-				startup(start);
-			else
-				start();
-		})();
-    </script>
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+/* ===== A. CẤU HÌNH ===== */
+const MAX_VIEWERS = 4;            // SỐ THIẾT BỊ XEM TỐI ĐA cùng lúc (xem giải thích ở đầu file)
+const PREFIX = 'shareroom-';      // tiền tố id PeerJS để mã phòng không trùng ứng dụng khác
+const ICE_CONFIG = { iceServers: [ // STUN giúp xuyên NAT. Mạng khó: thêm {urls:'turn:...',username:'',credential:''}
+  { urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' } ] };
+const BITRATE = { screen: 2.5e6, cam: 7e5 }; // giới hạn bit/giây mỗi luồng để đỡ nghẽn upload
+const $ = s => document.querySelector(s);
+const clamp = v => Math.max(0, Math.min(1, v));
+document.querySelectorAll('.maxv').forEach(e => e.textContent = MAX_VIEWERS);
+
+/* ===== B. TIỆN ÍCH CHUNG: đổi màn hình, thông báo, giữ máy không tắt màn hình ===== */
+function show(id){ document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === id)); }
+let toastT; function toast(m){ const t=$('#toast'); t.textContent=m; t.style.display='block'; clearTimeout(toastT); toastT=setTimeout(()=>t.style.display='none',3000); }
+let wake; async function keepAwake(){ try{ wake = await navigator.wakeLock.request('screen'); }catch(e){} }  // điện thoại không tự khóa màn hình
+function release(){ try{ wake && wake.release(); }catch(e){} wake=null; }
+document.querySelectorAll('[data-home]').forEach(b => b.onclick = () => show('home'));
+
+/* ===== C. KHUNG HÌNH DÙNG CHUNG (main = màn hình, cam = camera) =====
+   Camera đặt bằng toạ độ tỉ lệ x,y (0..1) + cỡ w (% chiều rộng).
+   Mẹo CSS: left = x*100% rồi dịch ngược x*100% kích thước chính nó
+   => 0 là sát trái/trên, 1 là sát phải/dưới, luôn nằm gọn trong khung.
+   Máy xem nhận cùng x,y,w nên thấy camera đúng vị trí máy chia sẻ đã đặt. */
+function makeStage(box){
+  const stage = document.createElement('div'); stage.className = 'stage';
+  stage.innerHTML = '<video class="main" autoplay playsinline></video><video class="cam" autoplay playsinline></video>';
+  box.prepend(stage);
+  const main = stage.querySelector('.main'), cam = stage.querySelector('.cam');
+  // fit(): co khung vừa vùng chứa nhưng giữ đúng tỉ lệ video (ngang hoặc dọc trên điện thoại)
+  const fit = () => {
+    const ref = stage.classList.contains('camonly') ? cam : main;
+    const ar = (ref.videoWidth / ref.videoHeight) || 16/9;
+    let w = box.clientWidth, h = w / ar;
+    if (h > box.clientHeight){ h = box.clientHeight; w = h * ar; }
+    stage.style.width = w + 'px'; stage.style.height = h + 'px';
+  };
+  new ResizeObserver(fit).observe(box);
+  [main, cam].forEach(v => v.addEventListener('resize', fit));
+  return { stage, main, cam, fit,
+    place(l){ cam.style.width = l.w + '%'; cam.style.left = l.x*100 + '%'; cam.style.top = l.y*100 + '%';
+      cam.style.transform = `translate(-${l.x*100}%,-${l.y*100}%)`; },
+    set(s){ stage.classList.toggle('camonly', !s.screen); cam.style.display = s.camv ? '' : 'none'; this.place(s.l); fit(); } };
+}
+
+/* ===== D. THIẾT BỊ CHIA SẺ ===== */
+let peer, screenS, camS, hostStage, facing = 'user', audioCtx, meterT;
+const viewers = new Map();                       // id người xem -> {conn, calls[]}
+let layout = { x: .98, y: .97, w: 24 };          // vị trí & cỡ khung camera
+const hasCamV = () => !!(camS && camS.getVideoTracks().length);
+const state = () => ({ l: layout, screen: !!screenS, camv: hasCamV() });
+const bc = m => viewers.forEach(v => v.conn.open && v.conn.send(m));  // gửi tin tới mọi người xem
+
+// D1. Màn hình chọn hình thức: tự thích nghi với thiết bị (điện thoại không có chia sẻ màn hình)
+const canScreen = !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia);
+function refreshSetup(){
+  $('#oSys').hidden = !$('#cScreen').checked;
+  $('#btnStart').disabled = !($('#cScreen').checked || $('#cCam').checked);
+  $('#setupNote').textContent = $('#btnStart').disabled ? 'Hãy bật Hình ảnh màn hình hoặc Camera.' :
+    (!$('#cScreen').checked && !$('#cCam').checked ? '' : $('#cScreen').checked ? '' : 'Chỉ chia sẻ camera: bạn sẽ thấy hình và mức âm thanh camera để điều chỉnh.');
+}
+if (!canScreen){
+  $('#cScreen').checked = false; $('#cScreen').disabled = true; $('#oScreen').classList.add('off');
+  $('#screenHint').textContent = 'Điện thoại/trình duyệt này chưa hỗ trợ chia sẻ màn hình – hãy dùng Camera.';
+  $('#cCam').checked = true; $('#cMic').checked = true;
+}
+document.querySelectorAll('#setup .sw').forEach(i => i.onchange = refreshSetup); refreshSetup();
+
+if (!window.isSecureContext) $('#envWarn').hidden = false;
+$('#btnShare').onclick = () => window.isSecureContext && navigator.mediaDevices ? show('setup') : toast('Cần mở trang bằng HTTPS để chia sẻ.');
+$('#btnView').onclick = () => show('join');
+
+// D2. Bấm "Bắt đầu": xin quyền màn hình / camera / micro rồi mở phòng
+$('#btnStart').onclick = async () => {
+  const o = { screen: $('#cScreen').checked, sys: $('#cSys').checked, cam: $('#cCam').checked, mic: $('#cMic').checked };
+  try {
+    if (o.screen){
+      screenS = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 30 }, audio: o.sys });
+      const t = screenS.getVideoTracks()[0]; t.contentHint = 'detail'; t.onended = stopShare; // bấm "Dừng chia sẻ" của trình duyệt cũng thoát
+    }
+    if (o.cam || o.mic)   // camera + micro nằm chung 1 luồng "cam"
+      camS = await navigator.mediaDevices.getUserMedia({
+        video: o.cam ? { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } } : false,
+        audio: o.mic ? { echoCancellation: true, noiseSuppression: true } : false });
+  } catch (e) {
+    freeStreams(); return toast(e.name === 'NotAllowedError' ? 'Bạn đã từ chối quyền truy cập.' : 'Không truy cập được thiết bị: ' + e.message);
+  }
+  openRoom();
+};
+function freeStreams(){ [screenS, camS].forEach(s => s && s.getTracks().forEach(t => { t.onended = null; t.stop(); })); screenS = camS = null; }
+
+// D3. Tạo phòng PeerJS với mã 6 ký tự (bỏ ký tự dễ nhầm như 0/O, 1/I)
+function newCode(){ const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; return Array.from({length:6},()=>c[Math.random()*c.length|0]).join(''); }
+function openRoom(){
+  // khung xem trước của máy chia sẻ (tắt tiếng để không bị vọng)
+  $('#hostBox').querySelector('.stage')?.remove();
+  hostStage = makeStage($('#hostBox')); hostStage.stage.classList.add('drag');
+  hostStage.main.muted = hostStage.cam.muted = true;
+  hostStage.main.srcObject = screenS; hostStage.cam.srcObject = camS; hostStage.set(state());
+  // hiện đúng các nút điều khiển theo lựa chọn
+  const aud = camS && camS.getAudioTracks().length;
+  $('#btnMic').hidden = $('#meter').hidden = !aud; $('#btnCam').hidden = !hasCamV();
+  $('#btnFlip').hidden = !hasCamV() || !navigator.mediaDevices.enumerateDevices;
+  $('#camCtl').hidden = !(screenS && hasCamV());
+  if (aud) startMeter();
+  show('room'); keepAwake(); makePeer();
+}
+function makePeer(){
+  const code = newCode();
+  peer = new Peer(PREFIX + code, { config: ICE_CONFIG });
+  peer.on('open', () => { $('#code').textContent = code; $('#cnt').textContent = 0; });
+  peer.on('connection', onViewer);                         // có người xem gõ mã và kết nối
+  peer.on('disconnected', () => peer.reconnect());          // rớt kết nối tới máy chủ bắt tay -> nối lại
+  peer.on('error', e => { if (e.type === 'unavailable-id'){ peer.destroy(); makePeer(); } else toast('Lỗi kết nối: ' + e.type); });
+}
+
+// D4. Xử lý từng người xem: kiểm tra giới hạn, rồi gọi gửi luồng hình/tiếng
+function onViewer(conn){
+  conn.on('open', () => {
+    if (viewers.size >= MAX_VIEWERS){ conn.send({ t: 'full' }); setTimeout(() => conn.close(), 400); return; } // đủ người
+    const v = { conn, calls: [] }; viewers.set(conn.peer, v);
+    conn.send({ t: 'hello', s: state() });                 // báo chế độ & vị trí camera hiện tại
+    if (screenS) callViewer(v, screenS, 'screen');
+    if (camS) callViewer(v, camS, 'cam');
+    $('#cnt').textContent = viewers.size;
+  });
+  conn.on('close', () => { viewers.delete(conn.peer); $('#cnt').textContent = viewers.size; });
+}
+function callViewer(v, stream, kind){
+  const call = peer.call(v.conn.peer, stream, { metadata: { kind } }); v.calls.push(call);
+  setTimeout(() => { try {                                  // giới hạn bitrate mỗi luồng video
+    call.peerConnection.getSenders().forEach(s => { if (s.track && s.track.kind === 'video'){
+      const p = s.getParameters(); if (!p.encodings || !p.encodings.length) p.encodings = [{}];
+      p.encodings[0].maxBitrate = BITRATE[kind]; s.setParameters(p).catch(() => {}); } });
+  } catch (e) {} }, 1500);
+}
+
+// D5. Chỉnh vị trí/kích thước camera: nút góc, thanh trượt, hoặc kéo thả trực tiếp
+function sync(){ hostStage.place(layout);
+  if (!sync.t) sync.t = setTimeout(() => { sync.t = 0; bc({ t: 'layout', l: layout }); }, 60); }  // gửi cho người xem (giảm tần suất)
+document.querySelectorAll('[data-pos]').forEach(b => b.onclick = () => { const [x,y] = b.dataset.pos.split(','); layout.x=+x; layout.y=+y; sync(); });
+$('#sizeR').oninput = e => { layout.w = +e.target.value; sync(); };
+(() => { let drag, off; const getCam = () => hostStage.cam;
+  document.addEventListener('pointerdown', e => { if (e.target !== getCam() || hostStage.stage.classList.contains('camonly')) return;
+    const r = e.target.getBoundingClientRect(); off = { x: e.clientX - r.left, y: e.clientY - r.top }; drag = true; e.target.setPointerCapture(e.pointerId); });
+  document.addEventListener('pointermove', e => { if (!drag) return;
+    const s = hostStage.stage.getBoundingClientRect(), c = getCam().getBoundingClientRect();
+    layout.x = clamp((e.clientX - off.x - s.left) / (s.width - c.width)); layout.y = clamp((e.clientY - off.y - s.top) / (s.height - c.height)); sync(); });
+  document.addEventListener('pointerup', () => drag = false); })();
+
+// D6. Thanh công cụ: tắt/bật micro, camera, đổi camera, đo mức âm thanh, dừng
+function startMeter(){                                      // thanh đo mức micro để chỉnh âm thanh camera
+  const a = camS.getAudioTracks()[0]; audioCtx = new AudioContext(); const an = audioCtx.createAnalyser(); an.fftSize = 256;
+  audioCtx.createMediaStreamSource(new MediaStream([a])).connect(an);   // không nối ra loa => không bị vọng
+  const d = new Uint8Array(an.frequencyBinCount);
+  meterT = setInterval(() => { an.getByteFrequencyData(d); $('#meterBar').style.width = Math.min(100, d.reduce((s,x)=>s+x,0)/d.length*1.6) + '%'; }, 100);
+}
+function toggle(kind, btn){ const ts = kind === 'a' ? camS.getAudioTracks() : camS.getVideoTracks();
+  ts.forEach(t => t.enabled = !t.enabled); btn.classList.toggle('off', !ts[0].enabled); }
+$('#btnMic').onclick = e => toggle('a', e.currentTarget);
+$('#btnCam').onclick = e => toggle('v', e.currentTarget);
+$('#btnFlip').onclick = async () => {                      // đổi camera trước/sau (hữu ích trên điện thoại)
+  facing = facing === 'user' ? 'environment' : 'user';
+  try {
+    const nt = (await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing } })).getVideoTracks()[0], old = camS.getVideoTracks()[0];
+    nt.enabled = old.enabled; camS.addTrack(nt); camS.removeTrack(old); old.stop();
+    viewers.forEach(v => v.calls.forEach(c => c.metadata.kind === 'cam' &&
+      c.peerConnection.getSenders().find(s => s.track && s.track.kind === 'video').replaceTrack(nt)));
+  } catch (e) { toast('Không đổi được camera.'); }
+};
+function stopShare(){                                      // dừng: báo người xem, giải phóng thiết bị
+  bc({ t: 'end' }); clearInterval(meterT); audioCtx && audioCtx.close(); audioCtx = null; freeStreams();
+  viewers.clear(); peer && peer.destroy(); peer = null; release(); show('home');
+}
+$('#btnStop').onclick = stopShare;
+const copy = (t, m) => navigator.clipboard.writeText(t).then(() => toast(m));
+$('#copyCode').onclick = () => copy($('#code').textContent, 'Đã sao chép mã phòng');
+$('#copyLink').onclick = () => copy(location.origin + location.pathname + '?room=' + $('#code').textContent, 'Đã sao chép link');
+
+/* ===== E. THIẾT BỊ XEM (nhiều thiết bị cùng lúc, tối đa MAX_VIEWERS) ===== */
+let vPeer, vStage;
+const codeIn = $('#codeIn');
+codeIn.oninput = () => codeIn.value = codeIn.value.replace(/\s/g, '').toUpperCase();
+codeIn.onkeydown = e => e.key === 'Enter' && $('#btnJoin').click();
+const q = new URLSearchParams(location.search).get('room');   // mở link ?room=ABC123 -> điền sẵn mã
+if (q){ codeIn.value = q.toUpperCase().slice(0, 6); show('join'); }
+
+$('#btnJoin').onclick = () => {
+  const code = codeIn.value.trim(); if (code.length < 6) return $('#joinErr').textContent = 'Mã phòng gồm 6 ký tự.';
+  $('#joinErr').textContent = ''; $('#wCode').textContent = code; $('#waiting').hidden = false; $('#waiting').textContent = 'Đang kết nối tới phòng…';
+  $('#tap').hidden = true; show('watch'); keepAwake();
+  if (!vStage) vStage = makeStage($('#viewBox')); vStage.main.srcObject = vStage.cam.srcObject = null;
+  vPeer = new Peer({ config: ICE_CONFIG });
+  const timeout = setTimeout(() => leave('Không kết nối được. Kiểm tra mã phòng hoặc mạng.'), 12000);
+  vPeer.on('open', () => {
+    const conn = vPeer.connect(PREFIX + code, { reliable: true });   // kênh dữ liệu: nhận lệnh & bố cục từ máy chia sẻ
+    conn.on('open', () => clearTimeout(timeout));
+    conn.on('data', onMsg); conn.on('close', () => leave('Phòng đã đóng.'));
+  });
+  vPeer.on('call', call => {                               // máy chia sẻ gửi luồng: kind = 'screen' hoặc 'cam'
+    call.answer();
+    call.on('stream', s => { const el = call.metadata.kind === 'screen' ? vStage.main : vStage.cam;
+      if (el.srcObject !== s) el.srcObject = s; $('#waiting').hidden = true; tryPlay(); });
+  });
+  vPeer.on('error', e => { clearTimeout(timeout); leave(e.type === 'peer-unavailable' ? 'Mã phòng không tồn tại hoặc đã đóng.' : 'Lỗi kết nối: ' + e.type); });
+};
+function onMsg(m){
+  if (m.t === 'hello') vStage.set(m.s);                    // bố cục ban đầu
+  if (m.t === 'layout') vStage.place(m.l);                 // người chia sẻ vừa kéo camera
+  if (m.t === 'end') leave('Người chia sẻ đã dừng.');
+  if (m.t === 'full') leave('Phòng đã đủ ' + MAX_VIEWERS + ' thiết bị xem.');
+}
+function tryPlay(){ [vStage.main, vStage.cam].forEach(v => v.play().catch(() => $('#tap').hidden = false)); }  // trình duyệt chặn tiếng -> hiện nút bấm
+$('#btnTap').onclick = () => { vStage.main.muted = vStage.cam.muted = false; $('#tap').hidden = true; tryPlay(); };
+$('#btnMute').onclick = e => { const m = !vStage.main.muted; vStage.main.muted = vStage.cam.muted = m; e.currentTarget.textContent = m ? '🔇 Đã tắt tiếng' : '🔊 Âm thanh'; };
+$('#btnFull').onclick = () => { const b = $('#viewBox'); (b.requestFullscreen || b.webkitRequestFullscreen || (() => toast('Thiết bị không hỗ trợ toàn màn hình.'))).call(b); };
+$('#btnLeave').onclick = () => leave();
+function leave(msg){
+  vPeer && vPeer.destroy(); vPeer = null; release(); show(msg ? 'join' : 'home'); if (msg) $('#joinErr').textContent = msg;
+}
+</script>
 </body>
 </html>
