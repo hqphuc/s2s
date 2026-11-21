@@ -110,6 +110,12 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--blue);outline-o
 /* ===== 6. MÀN HÌNH NHẬP MÃ & XEM ===== */
 .codein{width:100%;padding:16px;font-size:2rem;text-align:center;letter-spacing:.3em;font-weight:800;text-transform:uppercase;
   border:2px solid var(--line);border-radius:14px;background:var(--card)}
+.codein{cursor:pointer;caret-color:transparent}
+/* bảng số trên màn hình (hiện khi chạm vào ô nhập mã) */
+.keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.keypad button{padding:16px 0;font-size:1.6rem;font-weight:700;border-radius:14px;background:var(--card);border:1px solid var(--line);touch-action:manipulation}
+.keypad button:active{background:#dfe2db}
+.keypad .fn{font-size:1rem;background:#eceee9}
 .err{color:var(--live);min-height:1.4em}
 .overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;
   color:#fff;text-align:center;padding:20px;z-index:5}
@@ -183,7 +189,8 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--blue);outline-o
   <header class="bar"><button class="ghost" data-home>← Quay lại</button><b>Xem chia sẻ</b></header>
   <div class="panel">
     <p>Nhập mã phòng gồm 6 chữ số do người chia sẻ cung cấp.</p>
-    <input class="codein" id="codeIn" maxlength="6" placeholder="123456" autocomplete="off" inputmode="numeric" pattern="[0-9]*" spellcheck="false" aria-label="Mã phòng">
+    <input class="codein" id="codeIn" maxlength="6" placeholder="123456" autocomplete="off" inputmode="none" readonly spellcheck="false" aria-label="Mã phòng – chạm để hiện bảng số">
+    <div class="keypad" id="keypad" hidden></div><!-- bảng số: JS tạo nút 0-9, Xóa, ⌫ -->
     <p class="err" id="joinErr" role="alert"></p>
     <button class="big primary" id="btnJoin">Vào xem</button>
   </div>
@@ -265,16 +272,21 @@ function refreshSetup(){
   $('#setupNote').textContent = $('#btnStart').disabled ? 'Hãy bật Hình ảnh màn hình hoặc Camera.' :
     (!$('#cScreen').checked && !$('#cCam').checked ? '' : $('#cScreen').checked ? '' : 'Chỉ chia sẻ camera: bạn sẽ thấy hình và mức âm thanh camera để điều chỉnh.');
 }
+// Trình duyệt nào có getDisplayMedia (máy tính, và điện thoại nếu sau này được hỗ trợ) sẽ tự dùng được chia sẻ màn hình.
+// Trình duyệt điện thoại hiện tại (Chrome/Firefox/Samsung Internet Android, Safari iOS) không có API này:
+// công tắc vẫn bấm được nhưng sẽ giải thích rõ và chuyển sang camera + micro.
+const NO_SCREEN = 'Trình duyệt điện thoại chưa cho phép chia sẻ màn hình (giới hạn của Android/iOS). Hãy dùng Camera, hoặc cài app gốc.';
 if (!canScreen){
-  $('#cScreen').checked = false; $('#cScreen').disabled = true; $('#oScreen').classList.add('off');
-  $('#screenHint').textContent = 'Điện thoại/trình duyệt này chưa hỗ trợ chia sẻ màn hình – hãy dùng Camera.';
+  $('#cScreen').checked = false; $('#oScreen').classList.add('off');
+  $('#screenHint').textContent = 'Chạm để xem vì sao chưa dùng được trên thiết bị này';
   $('#cCam').checked = true; $('#cMic').checked = true;
+  $('#cScreen').addEventListener('change', e => { if (e.target.checked){ e.target.checked = false; toast(NO_SCREEN); refreshSetup(); } });
 }
 document.querySelectorAll('#setup .sw').forEach(i => i.onchange = refreshSetup); refreshSetup();
 
 if (!window.isSecureContext) $('#envWarn').hidden = false;
 $('#btnShare').onclick = () => window.isSecureContext && navigator.mediaDevices ? show('setup') : toast('Cần mở trang bằng HTTPS để chia sẻ.');
-$('#btnView').onclick = () => { show('join'); setTimeout(() => $('#codeIn').focus(), 50); };  // tự đặt con trỏ vào ô nhập mã
+$('#btnView').onclick = () => { show('join'); if (matchMedia('(pointer:fine)').matches) $('#codeIn').focus(); };  // máy tính: sẵn sàng gõ; cảm ứng: chạm ô để hiện bảng số
 
 // D2. Bấm "Bắt đầu": xin quyền màn hình / camera / micro rồi mở phòng
 $('#btnStart').onclick = async () => {
@@ -386,14 +398,26 @@ $('#copyLink').onclick = () => copy(location.origin + location.pathname + '?room
 /* ===== E. THIẾT BỊ XEM (nhiều thiết bị cùng lúc, tối đa MAX_VIEWERS) ===== */
 let vPeer, vStage;
 const codeIn = $('#codeIn');
-codeIn.oninput = () => { const c = codeIn.value.replace(/\D/g, ''); if (c !== codeIn.value) codeIn.value = c; };  // chỉ giữ chữ số
-codeIn.onkeydown = e => e.key === 'Enter' && $('#btnJoin').click();
+// Bảng số: chạm vào ô nhập mã -> hiện bàn phím số trên màn hình (ô chỉ-đọc nên bàn phím hệ thống/bộ gõ không bật lên)
+const keypad = $('#keypad');
+const setCode = v => { codeIn.value = v.replace(/\D/g, '').slice(0, 6); $('#joinErr').textContent = ''; };
+'123456789C0B'.split('').forEach(k => {                 // C = xóa hết, B = xóa lùi 1 số
+  const b = document.createElement('button'); b.type = 'button'; b.dataset.k = k;
+  b.textContent = k === 'C' ? 'Xóa' : k === 'B' ? '⌫' : k; if (k === 'C' || k === 'B') b.className = 'fn'; keypad.append(b); });
+keypad.onclick = e => { const k = e.target.dataset.k; if (!k) return;
+  setCode(k === 'C' ? '' : k === 'B' ? codeIn.value.slice(0, -1) : codeIn.value + k); };
+codeIn.onclick = codeIn.onfocus = () => keypad.hidden = false;
+codeIn.onkeydown = e => {                                // máy tính: vẫn gõ số bằng bàn phím thật được
+  if (e.key === 'Enter') $('#btnJoin').click();
+  else if (e.key === 'Backspace') setCode(codeIn.value.slice(0, -1));
+  else if (/^\d$/.test(e.key)) setCode(codeIn.value + e.key); };
+codeIn.onpaste = e => { e.preventDefault(); setCode(e.clipboardData.getData('text')); };  // dán mã từ clipboard
 const q = new URLSearchParams(location.search).get('room');   // mở link ?room=ABC123 -> điền sẵn mã
 if (q){ codeIn.value = q.replace(/\D/g, '').slice(0, 6); show('join'); }
 
 $('#btnJoin').onclick = () => {
   const code = codeIn.value.replace(/\D/g, ''); if (code.length < 6) return $('#joinErr').textContent = 'Mã phòng gồm 6 chữ số.';
-  $('#joinErr').textContent = ''; $('#wCode').textContent = code; $('#waiting').hidden = false; $('#waiting').textContent = 'Đang kết nối tới phòng…';
+  $('#joinErr').textContent = ''; keypad.hidden = true; $('#wCode').textContent = code; $('#waiting').hidden = false; $('#waiting').textContent = 'Đang kết nối tới phòng…';
   $('#tap').hidden = true; show('watch'); keepAwake();
   if (!vStage) vStage = makeStage($('#viewBox')); vStage.main.srcObject = vStage.cam.srcObject = null;
   vPeer = new Peer({ config: ICE_CONFIG });
