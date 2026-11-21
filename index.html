@@ -11,7 +11,7 @@
  CÁCH HOẠT ĐỘNG
  - Công nghệ: WebRTC (truyền hình/tiếng trực tiếp giữa các thiết bị).
    PeerJS chỉ dùng để "bắt tay" ban đầu qua mã phòng, video đi thẳng P2P.
- - Thiết bị CHIA SẺ (đúng 1 thiết bị) tạo phòng, nhận mã 6 ký tự.
+ - Thiết bị CHIA SẺ (đúng 1 thiết bị) tạo phòng, nhận mã 6 chữ số.
  - Thiết bị XEM nhập mã -> nối vào phòng và nhận hình/tiếng.
  - Mỗi người xem = 1 luồng upload riêng từ máy chia sẻ (mô hình mesh/star).
 
@@ -182,8 +182,8 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--blue);outline-o
 <section id="join" class="view">
   <header class="bar"><button class="ghost" data-home>← Quay lại</button><b>Xem chia sẻ</b></header>
   <div class="panel">
-    <p>Nhập mã phòng gồm 6 ký tự do người chia sẻ cung cấp.</p>
-    <input class="codein" id="codeIn" maxlength="6" placeholder="ABC123" autocomplete="off" autocapitalize="characters" inputmode="text" aria-label="Mã phòng">
+    <p>Nhập mã phòng gồm 6 chữ số do người chia sẻ cung cấp.</p>
+    <input class="codein" id="codeIn" maxlength="6" placeholder="123456" autocomplete="off" inputmode="numeric" pattern="[0-9]*" spellcheck="false" aria-label="Mã phòng">
     <p class="err" id="joinErr" role="alert"></p>
     <button class="big primary" id="btnJoin">Vào xem</button>
   </div>
@@ -274,7 +274,7 @@ document.querySelectorAll('#setup .sw').forEach(i => i.onchange = refreshSetup);
 
 if (!window.isSecureContext) $('#envWarn').hidden = false;
 $('#btnShare').onclick = () => window.isSecureContext && navigator.mediaDevices ? show('setup') : toast('Cần mở trang bằng HTTPS để chia sẻ.');
-$('#btnView').onclick = () => show('join');
+$('#btnView').onclick = () => { show('join'); setTimeout(() => $('#codeIn').focus(), 50); };  // tự đặt con trỏ vào ô nhập mã
 
 // D2. Bấm "Bắt đầu": xin quyền màn hình / camera / micro rồi mở phòng
 $('#btnStart').onclick = async () => {
@@ -295,8 +295,8 @@ $('#btnStart').onclick = async () => {
 };
 function freeStreams(){ [screenS, camS].forEach(s => s && s.getTracks().forEach(t => { t.onended = null; t.stop(); })); screenS = camS = null; }
 
-// D3. Tạo phòng PeerJS với mã 6 ký tự (bỏ ký tự dễ nhầm như 0/O, 1/I)
-function newCode(){ const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; return Array.from({length:6},()=>c[Math.random()*c.length|0]).join(''); }
+// D3. Tạo phòng PeerJS với mã 6 CHỮ SỐ (chỉ dùng số để bộ gõ tiếng Việt Telex/Unikey không biến đổi ký tự)
+function newCode(){ return String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, '0'); }
 function openRoom(){
   // khung xem trước của máy chia sẻ (tắt tiếng để không bị vọng)
   $('#hostBox').querySelector('.stage')?.remove();
@@ -347,9 +347,9 @@ function sync(){ hostStage.place(layout);
 document.querySelectorAll('[data-pos]').forEach(b => b.onclick = () => { const [x,y] = b.dataset.pos.split(','); layout.x=+x; layout.y=+y; sync(); });
 $('#sizeR').oninput = e => { layout.w = +e.target.value; sync(); };
 (() => { let drag, off; const getCam = () => hostStage.cam;
-  document.addEventListener('pointerdown', e => { if (e.target !== getCam() || hostStage.stage.classList.contains('camonly')) return;
+  document.addEventListener('pointerdown', e => { if (!hostStage || e.target !== getCam() || hostStage.stage.classList.contains('camonly')) return;
     const r = e.target.getBoundingClientRect(); off = { x: e.clientX - r.left, y: e.clientY - r.top }; drag = true; e.target.setPointerCapture(e.pointerId); });
-  document.addEventListener('pointermove', e => { if (!drag) return;
+  document.addEventListener('pointermove', e => { if (!drag || !hostStage) return;
     const s = hostStage.stage.getBoundingClientRect(), c = getCam().getBoundingClientRect();
     layout.x = clamp((e.clientX - off.x - s.left) / (s.width - c.width)); layout.y = clamp((e.clientY - off.y - s.top) / (s.height - c.height)); sync(); });
   document.addEventListener('pointerup', () => drag = false); })();
@@ -386,13 +386,13 @@ $('#copyLink').onclick = () => copy(location.origin + location.pathname + '?room
 /* ===== E. THIẾT BỊ XEM (nhiều thiết bị cùng lúc, tối đa MAX_VIEWERS) ===== */
 let vPeer, vStage;
 const codeIn = $('#codeIn');
-codeIn.oninput = () => codeIn.value = codeIn.value.replace(/\s/g, '').toUpperCase();
+codeIn.oninput = () => { const c = codeIn.value.replace(/\D/g, ''); if (c !== codeIn.value) codeIn.value = c; };  // chỉ giữ chữ số
 codeIn.onkeydown = e => e.key === 'Enter' && $('#btnJoin').click();
 const q = new URLSearchParams(location.search).get('room');   // mở link ?room=ABC123 -> điền sẵn mã
-if (q){ codeIn.value = q.toUpperCase().slice(0, 6); show('join'); }
+if (q){ codeIn.value = q.replace(/\D/g, '').slice(0, 6); show('join'); }
 
 $('#btnJoin').onclick = () => {
-  const code = codeIn.value.trim(); if (code.length < 6) return $('#joinErr').textContent = 'Mã phòng gồm 6 ký tự.';
+  const code = codeIn.value.replace(/\D/g, ''); if (code.length < 6) return $('#joinErr').textContent = 'Mã phòng gồm 6 chữ số.';
   $('#joinErr').textContent = ''; $('#wCode').textContent = code; $('#waiting').hidden = false; $('#waiting').textContent = 'Đang kết nối tới phòng…';
   $('#tap').hidden = true; show('watch'); keepAwake();
   if (!vStage) vStage = makeStage($('#viewBox')); vStage.main.srcObject = vStage.cam.srcObject = null;
