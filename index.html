@@ -13,7 +13,10 @@
    PeerJS chỉ dùng để "bắt tay" ban đầu qua mã phòng, video đi thẳng P2P.
  - Thiết bị CHIA SẺ (đúng 1 thiết bị) tạo phòng, nhận mã 6 chữ số.
  - Thiết bị XEM nhập mã -> nối vào phòng và nhận hình/tiếng.
- - Mỗi người xem = 1 luồng upload riêng từ máy chia sẻ (mô hình mesh/star).
+ - Mọi người trong phòng (người chia sẻ + người xem) nhập TÊN và đều có ô camera/micro
+   (bật/tắt được). Camera gửi trực tiếp giữa từng cặp thiết bị (mesh): tổng người trong
+   phòng = 1 + MAX_VIEWERS, mỗi người gửi camera cho những người còn lại (đã giới hạn bitrate).
+ - Màn hình chỉ do người chia sẻ gửi cho từng người xem (1 luồng upload riêng mỗi người).
 
  SỐ THIẾT BỊ XEM TỐI ĐA: hằng số MAX_VIEWERS bên dưới (mặc định 4).
    Lý do: máy chia sẻ phải gửi video cho TỪNG người xem. Màn hình ~2.5 Mbps
@@ -107,6 +110,20 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--blue);outline-o
 .meter{width:70px;height:8px;border-radius:4px;background:#dde0da;overflow:hidden}
 .meter i{display:block;height:100%;width:0;background:var(--blue);transition:width .1s}
 
+.namebox{display:grid;gap:6px}
+.namein{width:100%;padding:12px 14px;font-size:1.1rem;border:2px solid var(--line);border-radius:12px;background:var(--card)}
+/* ===== 5b. Ô CAMERA CỦA TỪNG NGƯỜI (tile) + DẢI NGƯỜI THAM GIA ===== */
+.tile{position:relative;aspect-ratio:4/3;border-radius:12px;overflow:hidden;background:#222b36;flex:none}
+.tile video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.tile .av{position:absolute;inset:0;margin:auto;width:44px;height:44px;border-radius:50%;background:var(--blue);color:#fff;display:none;align-items:center;justify-content:center;font-size:1.3rem}
+.tile.nocam video{visibility:hidden}          /* tắt camera: ẩn hình, hiện chữ cái đầu của tên */
+.tile.nocam .av{display:flex}
+.tile .nm{position:absolute;left:6px;bottom:4px;max-width:80%;font-size:.75rem;color:#fff;background:rgba(0,0,0,.55);padding:1px 6px;border-radius:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .ic{position:absolute;right:6px;top:4px;font-size:.9rem}
+.strip{display:flex;gap:8px;padding:8px 12px;overflow-x:auto;background:#12161b}
+.strip .tile{width:150px}
+.stage.drag .cam *{pointer-events:none}
+.stage.camonly .cam video{object-fit:contain}
 /* ===== 6. MÀN HÌNH NHẬP MÃ & XEM ===== */
 .codein{width:100%;padding:16px;font-size:2rem;text-align:center;letter-spacing:.3em;font-weight:800;text-transform:uppercase;
   border:2px solid var(--line);border-radius:14px;background:var(--card)}
@@ -125,6 +142,13 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--blue);outline-o
 </head>
 <body>
 <div id="toast"></div>
+<!-- nút camera/micro của chính mình: được nhân bản vào thanh công cụ của cả 2 loại thiết bị -->
+<template id="tbMedia">
+  <button class="rb tbMic" title="Bật/tắt micro">🔇</button>
+  <span class="meter tbMeter" hidden><i></i></span>
+  <button class="rb tbCam" title="Bật/tắt camera">🚫</button>
+  <button class="rb tbFlip" title="Đổi camera trước/sau" hidden>🔄</button>
+</template>
 
 <!-- ===== TRANG CHỦ: chọn vai trò ===== -->
 <section id="home" class="view active">
@@ -141,6 +165,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--blue);outline-o
 <section id="setup" class="view">
   <header class="bar"><button class="ghost" data-home>← Quay lại</button><b>Chọn nội dung chia sẻ</b></header>
   <div class="panel">
+    <label class="namebox"><b>Tên của bạn</b><input id="nameH" class="namein" maxlength="20" autocomplete="nickname" placeholder="Ví dụ: Minh"></label>
     <label class="opt" id="oScreen"><span class="ic">🖥️</span>
       <span class="tx"><b>Hình ảnh màn hình</b><small id="screenHint">Toàn màn hình, một cửa sổ hoặc một tab</small></span>
       <input type="checkbox" class="sw" id="cScreen" checked></label>
@@ -175,19 +200,15 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--blue);outline-o
     <span>Cỡ:</span><input type="range" id="sizeR" min="12" max="45" value="24" aria-label="Kích thước camera">
     <span class="note">hoặc kéo khung camera trên hình</span>
   </div>
-  <footer class="toolbar">
-    <button class="rb" id="btnMic" title="Bật/tắt micro" hidden>🎤</button>
-    <span class="meter" id="meter" hidden><i id="meterBar"></i></span>
-    <button class="rb" id="btnCam" title="Bật/tắt camera" hidden>📷</button>
-    <button class="rb" id="btnFlip" title="Đổi camera trước/sau" hidden>🔄</button>
-    <button class="rb stop" id="btnStop">Dừng chia sẻ</button>
-  </footer>
+  <div class="strip" id="stripH" hidden></div><!-- camera của những người đang xem -->
+  <footer class="toolbar"><button class="rb stop" id="btnStop">Dừng chia sẻ</button></footer>
 </section>
 
 <!-- ===== THIẾT BỊ XEM – BƯỚC 1: nhập mã phòng ===== -->
 <section id="join" class="view">
   <header class="bar"><button class="ghost" data-home>← Quay lại</button><b>Xem chia sẻ</b></header>
   <div class="panel">
+    <label class="namebox"><b>Tên của bạn</b><input id="nameV" class="namein" maxlength="20" autocomplete="nickname" placeholder="Ví dụ: Lan"></label>
     <p>Nhập mã phòng gồm 6 chữ số do người chia sẻ cung cấp.</p>
     <input class="codein" id="codeIn" maxlength="6" placeholder="123456" autocomplete="off" inputmode="none" readonly spellcheck="false" aria-label="Mã phòng – chạm để hiện bảng số">
     <div class="keypad" id="keypad" hidden></div><!-- bảng số: JS tạo nút 0-9, Xóa, ⌫ -->
@@ -209,6 +230,8 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--blue);outline-o
     <div class="overlay" id="waiting">Đang kết nối tới phòng…</div>
     <div class="overlay dim" id="tap" hidden><span>Trình duyệt đang chặn tiếng.</span><button id="btnTap">Bấm để xem có tiếng</button></div>
   </main>
+  <div class="strip" id="stripV" hidden></div><!-- camera của bạn và những người xem khác -->
+  <footer class="toolbar"></footer>
 </section>
 
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -218,7 +241,7 @@ const MAX_VIEWERS = 4;            // SỐ THIẾT BỊ XEM TỐI ĐA cùng lúc 
 const PREFIX = 'shareroom-';      // tiền tố id PeerJS để mã phòng không trùng ứng dụng khác
 const ICE_CONFIG = { iceServers: [ // STUN giúp xuyên NAT. Mạng khó: thêm {urls:'turn:...',username:'',credential:''}
   { urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' } ] };
-const BITRATE = { screen: 2.5e6, cam: 7e5 }; // giới hạn bit/giây mỗi luồng để đỡ nghẽn upload
+const BITRATE = { screen: 2.5e6, cam: 4e5 }; // giới hạn bit/giây mỗi luồng để đỡ nghẽn upload
 const $ = s => document.querySelector(s);
 const clamp = v => Math.max(0, Math.min(1, v));
 document.querySelectorAll('.maxv').forEach(e => e.textContent = MAX_VIEWERS);
@@ -230,51 +253,171 @@ let wake; async function keepAwake(){ try{ wake = await navigator.wakeLock.reque
 function release(){ try{ wake && wake.release(); }catch(e){} wake=null; }
 document.querySelectorAll('[data-home]').forEach(b => b.onclick = () => show('home'));
 
-/* ===== C. KHUNG HÌNH DÙNG CHUNG (main = màn hình, cam = camera) =====
-   Camera đặt bằng toạ độ tỉ lệ x,y (0..1) + cỡ w (% chiều rộng).
-   Mẹo CSS: left = x*100% rồi dịch ngược x*100% kích thước chính nó
-   => 0 là sát trái/trên, 1 là sát phải/dưới, luôn nằm gọn trong khung.
-   Máy xem nhận cùng x,y,w nên thấy camera đúng vị trí máy chia sẻ đã đặt. */
-function makeStage(box){
+/* ===== C. Ô CAMERA (tile) & KHUNG HÌNH ===== */
+let deaf = false;                                  // người xem tắt tiếng mọi người
+// tile(): ô camera của 1 người = video + chữ cái đầu (khi tắt camera) + tên + biểu tượng micro
+function tile(name, cls){
+  const el = document.createElement('div'); el.className = 'tile ' + (cls || '');
+  el.innerHTML = '<video autoplay playsinline></video><b class="av"></b><span class="nm"></span><span class="ic"></span>';
+  const v = el.querySelector('video'), q = x => el.querySelector(x);
+  const t = { el, v,
+    setName(n){ q('.nm').textContent = n; q('.av').textContent = (n || '?').trim().charAt(0).toUpperCase(); },
+    set(st){ el.classList.toggle('nocam', !st.cam); q('.ic').textContent = st.mic ? '' : '🔇'; },   // trạng thái camera/micro của người đó
+    setStream(st){ if (v.srcObject !== st) v.srcObject = st; v.muted = deaf; v.play().catch(() => $('#tap').hidden = false); } };
+  t.setName(name || ''); t.set({}); return t;
+}
+/* Khung hình chính: main = video màn hình; camT = ô camera của NGƯỜI CHIA SẺ đặt chồng lên màn hình.
+   Vị trí camT dùng toạ độ tỉ lệ x,y (0..1) + cỡ w (%): left = x*100% rồi dịch ngược x*100% kích thước chính nó
+   => luôn nằm gọn trong khung và máy xem thấy đúng chỗ máy chia sẻ đã đặt. */
+function makeStage(box, hostName){
   const stage = document.createElement('div'); stage.className = 'stage';
-  stage.innerHTML = '<video class="main" autoplay playsinline></video><video class="cam" autoplay playsinline></video>';
-  box.prepend(stage);
-  const main = stage.querySelector('.main'), cam = stage.querySelector('.cam');
-  // fit(): co khung vừa vùng chứa nhưng giữ đúng tỉ lệ video (ngang hoặc dọc trên điện thoại)
-  const fit = () => {
-    const ref = stage.classList.contains('camonly') ? cam : main;
-    const ar = (ref.videoWidth / ref.videoHeight) || 16/9;
-    let w = box.clientWidth, h = w / ar;
-    if (h > box.clientHeight){ h = box.clientHeight; w = h * ar; }
-    stage.style.width = w + 'px'; stage.style.height = h + 'px';
-  };
-  new ResizeObserver(fit).observe(box);
-  [main, cam].forEach(v => v.addEventListener('resize', fit));
-  return { stage, main, cam, fit,
-    place(l){ cam.style.width = l.w + '%'; cam.style.left = l.x*100 + '%'; cam.style.top = l.y*100 + '%';
-      cam.style.transform = `translate(-${l.x*100}%,-${l.y*100}%)`; },
-    set(s){ stage.classList.toggle('camonly', !s.screen); cam.style.display = s.camv ? '' : 'none'; this.place(s.l); fit(); } };
+  stage.innerHTML = '<video class="main" autoplay playsinline></video>';
+  const main = stage.firstChild, camT = tile(hostName, 'cam'); stage.append(camT.el); box.prepend(stage);
+  const fit = () => {                              // co khung vừa vùng chứa, giữ đúng tỉ lệ video (kể cả điện thoại dọc)
+    const ref = stage.classList.contains('camonly') ? camT.v : main, ar = (ref.videoWidth / ref.videoHeight) || 16/9;
+    let w = box.clientWidth, h = w / ar; if (h > box.clientHeight){ h = box.clientHeight; w = h * ar; }
+    stage.style.width = w + 'px'; stage.style.height = h + 'px'; };
+  new ResizeObserver(fit).observe(box); [main, camT.v].forEach(v => v.addEventListener('resize', fit));
+  const place = l => { const c = camT.el.style; c.width = l.w + '%'; c.left = l.x*100 + '%'; c.top = l.y*100 + '%'; c.transform = `translate(-${l.x*100}%,-${l.y*100}%)`; };
+  return { stage, main, camT, cam: camT.el, fit, place,
+    set(st){ stage.classList.toggle('camonly', !st.screen);          // không chia sẻ màn hình: camera phủ toàn khung
+      camT.el.style.display = (st.camv || !st.screen) ? '' : 'none'; place(st.l); fit(); } };
 }
 
-/* ===== D. THIẾT BỊ CHIA SẺ ===== */
-let peer, screenS, camS, hostStage, facing = 'user', audioCtx, meterT;
-const viewers = new Map();                       // id người xem -> {conn, calls[]}
-let layout = { x: .98, y: .97, w: 24 };          // vị trí & cỡ khung camera
-const hasCamV = () => !!(camS && camS.getVideoTracks().length);
-const state = () => ({ l: layout, screen: !!screenS, camv: hasCamV() });
-const bc = m => viewers.forEach(v => v.conn.open && v.conn.send(m));  // gửi tin tới mọi người xem
+/* ===== D. CAMERA & MICRO CỦA CHÍNH MÌNH (dùng chung cho cả 2 loại thiết bị) =====
+   Cuộc gọi cần luồng ngay từ đầu, nên dùng "track giả" (hình đen + tiếng im) rồi thay bằng track thật
+   khi bật camera/micro. Tắt = dừng hẳn thiết bị (tắt đèn camera) và quay về track giả. */
+let role, peer, hostId, myName = '', screenS, hostStage, vStage, selfT, facing = 'user', audioCtx, meterT, phV, phA;
+const people = new Map();                          // id -> {id,name,conn,call,tile}: những người khác trong phòng
+const local = { stream: null, cam: false, mic: false };
+let layout = { x: .98, y: .97, w: 24 };            // vị trí & cỡ camera người chia sẻ trên màn hình
+const strip = () => $(role === 'host' ? '#stripH' : '#stripV');
+const bc = m => people.forEach(p => p.conn && p.conn.open && p.conn.send(m));   // gửi tin cho mọi người
+const state = () => ({ l: layout, screen: !!screenS, camv: local.cam });          // bố cục gửi cho máy xem
 
-// D1. Màn hình chọn hình thức: tự thích nghi với thiết bị (điện thoại không có chia sẻ màn hình)
+function initLocal(){
+  const c = document.createElement('canvas'); c.width = c.height = 16; c.getContext('2d').fillRect(0, 0, 16, 16);
+  audioCtx = new AudioContext(); phV = c.captureStream(1).getVideoTracks()[0];
+  phA = audioCtx.createMediaStreamDestination().stream.getAudioTracks()[0];
+  local.stream = new MediaStream([phV, phA]); local.cam = local.mic = false;
+}
+function swap(kind, t){                            // đổi track trong luồng của mình và trong mọi cuộc gọi đang chạy
+  const old = local.stream.getTracks().find(x => x.kind === kind); local.stream.removeTrack(old); local.stream.addTrack(t);
+  people.forEach(p => p.call && p.call.peerConnection && p.call.peerConnection.getSenders().forEach(s => s.track && s.track.kind === kind && s.replaceTrack(t)));
+  if (old !== phV && old !== phA) old.stop();
+}
+async function setCam(on){
+  try { if (local.cam) swap('video', phV);         // nhả camera cũ trước (cần khi đổi camera trước/sau trên điện thoại)
+    if (on) swap('video', (await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 640 }, height: { ideal: 480 } } })).getVideoTracks()[0]);
+    local.cam = on;
+  } catch (e) { local.cam = false; toast('Không bật được camera: ' + (e.name === 'NotAllowedError' ? 'chưa cấp quyền' : e.message)); }
+  syncLocal();
+}
+async function setMic(on){
+  try { if (on){ const t = (await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } })).getAudioTracks()[0]; swap('audio', t); meter(t); }
+    else { swap('audio', phA); meter(null); }
+    local.mic = on;
+  } catch (e) { local.mic = false; toast('Không bật được micro: ' + (e.name === 'NotAllowedError' ? 'chưa cấp quyền' : e.message)); }
+  syncLocal();
+}
+function meter(t){                                 // thanh đo mức micro (để chỉnh âm thanh)
+  clearInterval(meterT); document.querySelectorAll('.tbMeter i').forEach(i => i.style.width = 0); if (!t) return;
+  const an = audioCtx.createAnalyser(); an.fftSize = 256; audioCtx.createMediaStreamSource(new MediaStream([t])).connect(an);
+  const d = new Uint8Array(an.frequencyBinCount);
+  meterT = setInterval(() => { an.getByteFrequencyData(d); const w = Math.min(100, d.reduce((a, x) => a + x, 0) / d.length * 1.6) + '%';
+    document.querySelectorAll('.tbMeter i').forEach(i => i.style.width = w); }, 100);
+}
+function syncLocal(){                              // cập nhật nút bấm + ô camera của mình + báo cho mọi người
+  document.querySelectorAll('.tbMic').forEach(b => { b.classList.toggle('off', !local.mic); b.textContent = local.mic ? '🎤' : '🔇'; });
+  document.querySelectorAll('.tbCam').forEach(b => { b.classList.toggle('off', !local.cam); b.textContent = local.cam ? '📷' : '🚫'; });
+  document.querySelectorAll('.tbFlip').forEach(b => b.hidden = !local.cam);
+  document.querySelectorAll('.tbMeter').forEach(b => b.hidden = !local.mic);
+  if (selfT) selfT.set(local);
+  if (role === 'host' && hostStage){ hostStage.camT.set(local); hostStage.set(state()); bc({ t: 'st', s: state() }); }
+  bc({ t: 'me', name: myName, cam: local.cam, mic: local.mic });
+}
+['#room .toolbar', '#watch .toolbar'].forEach(q => $(q).prepend($('#tbMedia').content.cloneNode(true)));  // nút camera/micro ở cả 2 thiết bị
+document.querySelectorAll('.tbMic').forEach(b => b.onclick = () => setMic(!local.mic));
+document.querySelectorAll('.tbCam').forEach(b => b.onclick = () => setCam(!local.cam));
+document.querySelectorAll('.tbFlip').forEach(b => b.onclick = () => { facing = facing === 'user' ? 'environment' : 'user'; setCam(true); });
+
+/* ===== E. MẠNG: danh sách người trong phòng, kết nối từng cặp =====
+   Mỗi cặp thiết bị có 1 kênh dữ liệu (tên, trạng thái camera/micro) + 1 cuộc gọi hai chiều (camera/micro).
+   Người mới vào gọi tất cả người đang có mặt; người chia sẻ gửi thêm 1 cuộc gọi riêng chứa màn hình. */
+function addPerson(id, name, t){
+  let p = people.get(id); if (p) return p;
+  t = t || tile(name); if (!t.el.parentNode) strip().append(t.el);
+  p = { id, name, tile: t }; people.set(id, p); layoutStrip(); return p;
+}
+function layoutStrip(){ const s = strip(); if (s) s.hidden = !s.children.length; $('#cnt').textContent = people.size; }
+function dropPerson(id){
+  const p = people.get(id); if (!p) return; people.delete(id);
+  if (role === 'viewer' && id === hostId) return leave('Phòng đã đóng.');
+  p.tile.el.remove(); layoutStrip();
+}
+function wire(p, conn){                            // gắn kênh dữ liệu với 1 người
+  p.conn = conn; const hi = () => conn.send({ t: 'me', name: myName, cam: local.cam, mic: local.mic });
+  conn.open ? hi() : conn.on('open', hi);
+  conn.on('data', m => onData(p, m)); conn.on('close', () => dropPerson(p.id));
+}
+function limit(call, kind){                        // giới hạn bitrate video để mạng đỡ nghẽn
+  if (!call) return;
+  setTimeout(() => { try { call.peerConnection.getSenders().forEach(s => { if (s.track && s.track.kind === 'video'){
+    const pr = s.getParameters(); if (!pr.encodings || !pr.encodings.length) pr.encodings = [{}];
+    pr.encodings[0].maxBitrate = BITRATE[kind]; s.setParameters(pr).catch(() => {}); } }); } catch (e) {} }, 1500);
+}
+function wireCall(p, call){ p.call = call; call.on('stream', st => p.tile.setStream(st)); limit(call, 'cam'); }
+function callPeer(p){ wireCall(p, peer.call(p.id, local.stream, { metadata: { kind: 'cam', name: myName } })); }
+function connectTo(id, name){                      // người mới nối tới 1 người xem khác
+  if (people.has(id)) return; const p = addPerson(id, name);
+  wire(p, peer.connect(id, { reliable: true, metadata: { name: myName } })); callPeer(p);
+}
+function onData(p, m){
+  if (m.t === 'me'){ p.name = m.name || p.name; p.tile.setName(p.name); p.tile.set(m); }
+  else if (m.t === 'hello' && role === 'viewer'){    // chỉ người chia sẻ gửi: bố cục + danh sách người xem có sẵn
+    vStage.set(m.s); p.name = m.host; vStage.camT.setName(m.host); m.roster.forEach(r => connectTo(r.id, r.name)); callPeer(p); }
+  else if (m.t === 'st' && p.id === hostId) vStage.set(m.s);       // người chia sẻ đổi vị trí/bật tắt camera
+  else if (m.t === 'end') leave('Người chia sẻ đã dừng.');
+  else if (m.t === 'full') leave('Phòng đã đủ ' + MAX_VIEWERS + ' thiết bị xem.');
+}
+function wirePeer(){                               // dùng chung cho người chia sẻ và người xem
+  peer.on('connection', conn => {
+    const go = () => {
+      if (role === 'host'){
+        if (people.size >= MAX_VIEWERS && !people.has(conn.peer)){ conn.send({ t: 'full' }); setTimeout(() => conn.close(), 400); return; }  // đủ người
+        const p = addPerson(conn.peer, (conn.metadata || {}).name || 'Khách'); wire(p, conn);
+        conn.send({ t: 'hello', s: state(), host: myName, roster: [...people.values()].filter(x => x !== p).map(x => ({ id: x.id, name: x.name })) });
+        if (screenS){ p.screenCall = peer.call(p.id, screenS, { metadata: { kind: 'screen' } }); limit(p.screenCall, 'screen'); }
+      } else wire(addPerson(conn.peer, (conn.metadata || {}).name || 'Khách'), conn);
+    };
+    conn.open ? go() : conn.on('open', go);
+  });
+  peer.on('call', call => {
+    if (call.metadata && call.metadata.kind === 'screen'){   // luồng màn hình (chỉ máy xem nhận)
+      call.answer(); call.on('stream', st => { if (vStage.main.srcObject !== st) vStage.main.srcObject = st;
+        vStage.main.muted = deaf; vStage.main.play().catch(() => $('#tap').hidden = false); $('#waiting').hidden = true; });
+    } else { const p = people.get(call.peer) || addPerson(call.peer, (call.metadata || {}).name); call.answer(local.stream); wireCall(p, call); }
+  });
+}
+function cleanup(){                                // giải phóng mọi thứ khi dừng/rời phòng
+  clearInterval(meterT); if (screenS) screenS.getTracks().forEach(t => { t.onended = null; t.stop(); }); screenS = null;
+  if (local.stream) local.stream.getTracks().forEach(t => t.stop()); local.cam = local.mic = false;
+  if (audioCtx) audioCtx.close(); audioCtx = null; selfT = null; people.clear();
+  ['#stripH', '#stripV'].forEach(i => { $(i).innerHTML = ''; $(i).hidden = true; });
+  const pr = peer; peer = null; if (pr) pr.destroy(); release(); syncLocal();
+}
+
+/* ===== F. THIẾT BỊ CHIA SẺ (đúng 1 thiết bị) ===== */
 const canScreen = !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia);
+try { $('#nameH').value = $('#nameV').value = localStorage.getItem('shareroom-name') || ''; } catch (e) {}   // nhớ tên lần trước
 function refreshSetup(){
-  $('#oSys').hidden = !$('#cScreen').checked;
-  $('#btnStart').disabled = !($('#cScreen').checked || $('#cCam').checked);
-  $('#setupNote').textContent = $('#btnStart').disabled ? 'Hãy bật Hình ảnh màn hình hoặc Camera.' :
-    (!$('#cScreen').checked && !$('#cCam').checked ? '' : $('#cScreen').checked ? '' : 'Chỉ chia sẻ camera: bạn sẽ thấy hình và mức âm thanh camera để điều chỉnh.');
+  const ok = $('#nameH').value.trim() && ($('#cScreen').checked || $('#cCam').checked);
+  $('#oSys').hidden = !$('#cScreen').checked; $('#btnStart').disabled = !ok;
+  $('#setupNote').textContent = !$('#nameH').value.trim() ? 'Hãy nhập tên của bạn.' : !($('#cScreen').checked || $('#cCam').checked) ? 'Hãy bật Hình ảnh màn hình hoặc Camera.' :
+    $('#cScreen').checked ? '' : 'Chỉ chia sẻ camera: bạn sẽ thấy hình và mức âm thanh camera để điều chỉnh.';
 }
-// Trình duyệt nào có getDisplayMedia (máy tính, và điện thoại nếu sau này được hỗ trợ) sẽ tự dùng được chia sẻ màn hình.
-// Trình duyệt điện thoại hiện tại (Chrome/Firefox/Samsung Internet Android, Safari iOS) không có API này:
-// công tắc vẫn bấm được nhưng sẽ giải thích rõ và chuyển sang camera + micro.
+// Trình duyệt có getDisplayMedia (máy tính) dùng được chia sẻ màn hình. Điện thoại hiện chưa có API này
+// (Android/iOS): công tắc vẫn bấm được nhưng báo rõ lý do và chuyển sang camera + micro.
 const NO_SCREEN = 'Trình duyệt điện thoại chưa cho phép chia sẻ màn hình (giới hạn của Android/iOS). Hãy dùng Camera, hoặc cài app gốc.';
 if (!canScreen){
   $('#cScreen').checked = false; $('#oScreen').classList.add('off');
@@ -282,171 +425,93 @@ if (!canScreen){
   $('#cCam').checked = true; $('#cMic').checked = true;
   $('#cScreen').addEventListener('change', e => { if (e.target.checked){ e.target.checked = false; toast(NO_SCREEN); refreshSetup(); } });
 }
-document.querySelectorAll('#setup .sw').forEach(i => i.onchange = refreshSetup); refreshSetup();
-
+document.querySelectorAll('#setup .sw').forEach(i => i.onchange = refreshSetup); $('#nameH').oninput = refreshSetup; refreshSetup();
 if (!window.isSecureContext) $('#envWarn').hidden = false;
 $('#btnShare').onclick = () => window.isSecureContext && navigator.mediaDevices ? show('setup') : toast('Cần mở trang bằng HTTPS để chia sẻ.');
-$('#btnView').onclick = () => { show('join'); if (matchMedia('(pointer:fine)').matches) $('#codeIn').focus(); };  // máy tính: sẵn sàng gõ; cảm ứng: chạm ô để hiện bảng số
+$('#btnView').onclick = () => { show('join'); if (matchMedia('(pointer:fine)').matches) $('#nameV').focus(); };
 
-// D2. Bấm "Bắt đầu": xin quyền màn hình / camera / micro rồi mở phòng
-$('#btnStart').onclick = async () => {
+$('#btnStart').onclick = async () => {             // bấm "Bắt đầu": xin quyền rồi mở phòng
   const o = { screen: $('#cScreen').checked, sys: $('#cSys').checked, cam: $('#cCam').checked, mic: $('#cMic').checked };
-  try {
-    if (o.screen){
+  myName = $('#nameH').value.trim(); try { localStorage.setItem('shareroom-name', myName); } catch (e) {}
+  role = 'host';
+  try { if (o.screen){
       screenS = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 30 }, audio: o.sys });
-      const t = screenS.getVideoTracks()[0]; t.contentHint = 'detail'; t.onended = stopShare; // bấm "Dừng chia sẻ" của trình duyệt cũng thoát
-    }
-    if (o.cam || o.mic)   // camera + micro nằm chung 1 luồng "cam"
-      camS = await navigator.mediaDevices.getUserMedia({
-        video: o.cam ? { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } } : false,
-        audio: o.mic ? { echoCancellation: true, noiseSuppression: true } : false });
-  } catch (e) {
-    freeStreams(); return toast(e.name === 'NotAllowedError' ? 'Bạn đã từ chối quyền truy cập.' : 'Không truy cập được thiết bị: ' + e.message);
-  }
+      const t = screenS.getVideoTracks()[0]; t.contentHint = 'detail'; t.onended = stopShare; } }   // bấm "Dừng chia sẻ" của trình duyệt cũng thoát
+  catch (e) { screenS = null; return toast(e.name === 'NotAllowedError' ? 'Bạn đã từ chối chia sẻ màn hình.' : 'Không chia sẻ được màn hình: ' + e.message); }
+  initLocal(); if (o.cam) await setCam(true); if (o.mic) await setMic(true);
   openRoom();
 };
-function freeStreams(){ [screenS, camS].forEach(s => s && s.getTracks().forEach(t => { t.onended = null; t.stop(); })); screenS = camS = null; }
-
-// D3. Tạo phòng PeerJS với mã 6 CHỮ SỐ (chỉ dùng số để bộ gõ tiếng Việt Telex/Unikey không biến đổi ký tự)
-function newCode(){ return String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, '0'); }
+function newCode(){ return String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, '0'); }   // mã 6 chữ số (tránh bộ gõ Telex biến đổi)
 function openRoom(){
-  // khung xem trước của máy chia sẻ (tắt tiếng để không bị vọng)
   $('#hostBox').querySelector('.stage')?.remove();
-  hostStage = makeStage($('#hostBox')); hostStage.stage.classList.add('drag');
-  hostStage.main.muted = hostStage.cam.muted = true;
-  hostStage.main.srcObject = screenS; hostStage.cam.srcObject = camS; hostStage.set(state());
-  // hiện đúng các nút điều khiển theo lựa chọn
-  const aud = camS && camS.getAudioTracks().length;
-  $('#btnMic').hidden = $('#meter').hidden = !aud; $('#btnCam').hidden = !hasCamV();
-  $('#btnFlip').hidden = !hasCamV() || !navigator.mediaDevices.enumerateDevices;
-  $('#camCtl').hidden = !(screenS && hasCamV());
-  if (aud) startMeter();
-  show('room'); keepAwake(); makePeer();
+  hostStage = makeStage($('#hostBox'), myName + ' (Bạn)'); hostStage.stage.classList.add('drag');   // xem trước (tắt tiếng để khỏi vọng)
+  [hostStage.main, hostStage.camT.v].forEach(v => { v.muted = true; v.dataset.self = 1; });
+  hostStage.main.srcObject = screenS; hostStage.camT.v.srcObject = local.stream;
+  $('#camCtl').hidden = !screenS; show('room'); keepAwake(); syncLocal(); makePeer();
 }
-function makePeer(){
-  const code = newCode();
-  peer = new Peer(PREFIX + code, { config: ICE_CONFIG });
-  peer.on('open', () => { $('#code').textContent = code; $('#cnt').textContent = 0; });
-  peer.on('connection', onViewer);                         // có người xem gõ mã và kết nối
-  peer.on('disconnected', () => peer.reconnect());          // rớt kết nối tới máy chủ bắt tay -> nối lại
-  peer.on('error', e => { if (e.type === 'unavailable-id'){ peer.destroy(); makePeer(); } else toast('Lỗi kết nối: ' + e.type); });
+function makePeer(){                               // tạo phòng PeerJS, mã phòng = id
+  const code = newCode(); peer = new Peer(PREFIX + code, { config: ICE_CONFIG }); wirePeer();
+  peer.on('open', () => { $('#code').textContent = code; layoutStrip(); });
+  peer.on('disconnected', () => peer.reconnect());
+  peer.on('error', e => { if (e.type === 'unavailable-id'){ const pr = peer; peer = null; pr.destroy(); makePeer(); } else toast('Lỗi kết nối: ' + e.type); });
 }
-
-// D4. Xử lý từng người xem: kiểm tra giới hạn, rồi gọi gửi luồng hình/tiếng
-function onViewer(conn){
-  conn.on('open', () => {
-    if (viewers.size >= MAX_VIEWERS){ conn.send({ t: 'full' }); setTimeout(() => conn.close(), 400); return; } // đủ người
-    const v = { conn, calls: [] }; viewers.set(conn.peer, v);
-    conn.send({ t: 'hello', s: state() });                 // báo chế độ & vị trí camera hiện tại
-    if (screenS) callViewer(v, screenS, 'screen');
-    if (camS) callViewer(v, camS, 'cam');
-    $('#cnt').textContent = viewers.size;
-  });
-  conn.on('close', () => { viewers.delete(conn.peer); $('#cnt').textContent = viewers.size; });
-}
-function callViewer(v, stream, kind){
-  const call = peer.call(v.conn.peer, stream, { metadata: { kind } }); v.calls.push(call);
-  setTimeout(() => { try {                                  // giới hạn bitrate mỗi luồng video
-    call.peerConnection.getSenders().forEach(s => { if (s.track && s.track.kind === 'video'){
-      const p = s.getParameters(); if (!p.encodings || !p.encodings.length) p.encodings = [{}];
-      p.encodings[0].maxBitrate = BITRATE[kind]; s.setParameters(p).catch(() => {}); } });
-  } catch (e) {} }, 1500);
-}
-
-// D5. Chỉnh vị trí/kích thước camera: nút góc, thanh trượt, hoặc kéo thả trực tiếp
-function sync(){ hostStage.place(layout);
-  if (!sync.t) sync.t = setTimeout(() => { sync.t = 0; bc({ t: 'layout', l: layout }); }, 60); }  // gửi cho người xem (giảm tần suất)
-document.querySelectorAll('[data-pos]').forEach(b => b.onclick = () => { const [x,y] = b.dataset.pos.split(','); layout.x=+x; layout.y=+y; sync(); });
+function sync(){ hostStage.place(layout); if (!sync.t) sync.t = setTimeout(() => { sync.t = 0; bc({ t: 'st', s: state() }); }, 60); }  // gửi vị trí camera (giảm tần suất)
+document.querySelectorAll('[data-pos]').forEach(b => b.onclick = () => { const [x, y] = b.dataset.pos.split(','); layout.x = +x; layout.y = +y; sync(); });
 $('#sizeR').oninput = e => { layout.w = +e.target.value; sync(); };
-(() => { let drag, off; const getCam = () => hostStage.cam;
-  document.addEventListener('pointerdown', e => { if (!hostStage || e.target !== getCam() || hostStage.stage.classList.contains('camonly')) return;
+(() => { let drag, off;                             // kéo thả khung camera trên màn hình
+  document.addEventListener('pointerdown', e => { if (!hostStage || e.target !== hostStage.cam || hostStage.stage.classList.contains('camonly')) return;
     const r = e.target.getBoundingClientRect(); off = { x: e.clientX - r.left, y: e.clientY - r.top }; drag = true; e.target.setPointerCapture(e.pointerId); });
   document.addEventListener('pointermove', e => { if (!drag || !hostStage) return;
-    const s = hostStage.stage.getBoundingClientRect(), c = getCam().getBoundingClientRect();
+    const s = hostStage.stage.getBoundingClientRect(), c = hostStage.cam.getBoundingClientRect();
     layout.x = clamp((e.clientX - off.x - s.left) / (s.width - c.width)); layout.y = clamp((e.clientY - off.y - s.top) / (s.height - c.height)); sync(); });
   document.addEventListener('pointerup', () => drag = false); })();
-
-// D6. Thanh công cụ: tắt/bật micro, camera, đổi camera, đo mức âm thanh, dừng
-function startMeter(){                                      // thanh đo mức micro để chỉnh âm thanh camera
-  const a = camS.getAudioTracks()[0]; audioCtx = new AudioContext(); const an = audioCtx.createAnalyser(); an.fftSize = 256;
-  audioCtx.createMediaStreamSource(new MediaStream([a])).connect(an);   // không nối ra loa => không bị vọng
-  const d = new Uint8Array(an.frequencyBinCount);
-  meterT = setInterval(() => { an.getByteFrequencyData(d); $('#meterBar').style.width = Math.min(100, d.reduce((s,x)=>s+x,0)/d.length*1.6) + '%'; }, 100);
-}
-function toggle(kind, btn){ const ts = kind === 'a' ? camS.getAudioTracks() : camS.getVideoTracks();
-  ts.forEach(t => t.enabled = !t.enabled); btn.classList.toggle('off', !ts[0].enabled); }
-$('#btnMic').onclick = e => toggle('a', e.currentTarget);
-$('#btnCam').onclick = e => toggle('v', e.currentTarget);
-$('#btnFlip').onclick = async () => {                      // đổi camera trước/sau (hữu ích trên điện thoại)
-  facing = facing === 'user' ? 'environment' : 'user';
-  try {
-    const nt = (await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing } })).getVideoTracks()[0], old = camS.getVideoTracks()[0];
-    nt.enabled = old.enabled; camS.addTrack(nt); camS.removeTrack(old); old.stop();
-    viewers.forEach(v => v.calls.forEach(c => c.metadata.kind === 'cam' &&
-      c.peerConnection.getSenders().find(s => s.track && s.track.kind === 'video').replaceTrack(nt)));
-  } catch (e) { toast('Không đổi được camera.'); }
-};
-function stopShare(){                                      // dừng: báo người xem, giải phóng thiết bị
-  bc({ t: 'end' }); clearInterval(meterT); audioCtx && audioCtx.close(); audioCtx = null; freeStreams();
-  viewers.clear(); peer && peer.destroy(); peer = null; release(); show('home');
-}
+function stopShare(){ if (role !== 'host' || !peer) return; bc({ t: 'end' }); show('home'); setTimeout(cleanup, 250); }
 $('#btnStop').onclick = stopShare;
 const copy = (t, m) => navigator.clipboard.writeText(t).then(() => toast(m));
 $('#copyCode').onclick = () => copy($('#code').textContent, 'Đã sao chép mã phòng');
 $('#copyLink').onclick = () => copy(location.origin + location.pathname + '?room=' + $('#code').textContent, 'Đã sao chép link');
 
-/* ===== E. THIẾT BỊ XEM (nhiều thiết bị cùng lúc, tối đa MAX_VIEWERS) ===== */
-let vPeer, vStage;
-const codeIn = $('#codeIn');
-// Bảng số: chạm vào ô nhập mã -> hiện bàn phím số trên màn hình (ô chỉ-đọc nên bàn phím hệ thống/bộ gõ không bật lên)
-const keypad = $('#keypad');
+/* ===== G. THIẾT BỊ XEM (nhiều thiết bị, tối đa MAX_VIEWERS) ===== */
+const codeIn = $('#codeIn'), keypad = $('#keypad');
 const setCode = v => { codeIn.value = v.replace(/\D/g, '').slice(0, 6); $('#joinErr').textContent = ''; };
-'123456789C0B'.split('').forEach(k => {                 // C = xóa hết, B = xóa lùi 1 số
+'123456789C0B'.split('').forEach(k => {            // bảng số: C = xóa hết, B = xóa lùi 1 số
   const b = document.createElement('button'); b.type = 'button'; b.dataset.k = k;
   b.textContent = k === 'C' ? 'Xóa' : k === 'B' ? '⌫' : k; if (k === 'C' || k === 'B') b.className = 'fn'; keypad.append(b); });
 keypad.onclick = e => { const k = e.target.dataset.k; if (!k) return;
   setCode(k === 'C' ? '' : k === 'B' ? codeIn.value.slice(0, -1) : codeIn.value + k); };
-codeIn.onclick = codeIn.onfocus = () => keypad.hidden = false;
-codeIn.onkeydown = e => {                                // máy tính: vẫn gõ số bằng bàn phím thật được
-  if (e.key === 'Enter') $('#btnJoin').click();
-  else if (e.key === 'Backspace') setCode(codeIn.value.slice(0, -1));
-  else if (/^\d$/.test(e.key)) setCode(codeIn.value + e.key); };
-codeIn.onpaste = e => { e.preventDefault(); setCode(e.clipboardData.getData('text')); };  // dán mã từ clipboard
-const q = new URLSearchParams(location.search).get('room');   // mở link ?room=ABC123 -> điền sẵn mã
+codeIn.onclick = codeIn.onfocus = () => keypad.hidden = false;       // chạm ô mã phòng -> hiện bảng số (ô chỉ-đọc nên không bật bàn phím hệ thống)
+codeIn.onkeydown = e => { if (e.key === 'Enter') $('#btnJoin').click();   // máy tính: vẫn gõ số bằng bàn phím thật
+  else if (e.key === 'Backspace') setCode(codeIn.value.slice(0, -1)); else if (/^\d$/.test(e.key)) setCode(codeIn.value + e.key); };
+codeIn.onpaste = e => { e.preventDefault(); setCode(e.clipboardData.getData('text')); };
+const q = new URLSearchParams(location.search).get('room');          // link ?room=123456 -> điền sẵn mã
 if (q){ codeIn.value = q.replace(/\D/g, '').slice(0, 6); show('join'); }
 
-$('#btnJoin').onclick = () => {
-  const code = codeIn.value.replace(/\D/g, ''); if (code.length < 6) return $('#joinErr').textContent = 'Mã phòng gồm 6 chữ số.';
-  $('#joinErr').textContent = ''; keypad.hidden = true; $('#wCode').textContent = code; $('#waiting').hidden = false; $('#waiting').textContent = 'Đang kết nối tới phòng…';
-  $('#tap').hidden = true; show('watch'); keepAwake();
-  if (!vStage) vStage = makeStage($('#viewBox')); vStage.main.srcObject = vStage.cam.srcObject = null;
-  vPeer = new Peer({ config: ICE_CONFIG });
+$('#btnJoin').onclick = () => {                    // vào phòng: cần TÊN + MÃ PHÒNG
+  const name = $('#nameV').value.trim(), code = codeIn.value.replace(/\D/g, '');
+  if (!name) return $('#joinErr').textContent = 'Vui lòng nhập tên của bạn.';
+  if (code.length < 6) return $('#joinErr').textContent = 'Mã phòng gồm 6 chữ số.';
+  myName = name; try { localStorage.setItem('shareroom-name', name); } catch (e) {}
+  role = 'viewer'; hostId = PREFIX + code; keypad.hidden = true; $('#joinErr').textContent = '';
+  $('#wCode').textContent = code; $('#waiting').hidden = false; $('#waiting').textContent = 'Đang kết nối tới phòng…'; $('#tap').hidden = true;
+  show('watch'); keepAwake(); initLocal();
+  if (!vStage) vStage = makeStage($('#viewBox'), 'Người chia sẻ'); vStage.main.srcObject = vStage.camT.v.srcObject = null;
+  selfT = tile(myName + ' (Bạn)'); selfT.v.srcObject = local.stream; selfT.v.muted = true; selfT.v.dataset.self = 1; strip().append(selfT.el); selfT.set(local);
+  syncLocal();
+  peer = new Peer({ config: ICE_CONFIG }); wirePeer();
   const timeout = setTimeout(() => leave('Không kết nối được. Kiểm tra mã phòng hoặc mạng.'), 12000);
-  vPeer.on('open', () => {
-    const conn = vPeer.connect(PREFIX + code, { reliable: true });   // kênh dữ liệu: nhận lệnh & bố cục từ máy chia sẻ
-    conn.on('open', () => clearTimeout(timeout));
-    conn.on('data', onMsg); conn.on('close', () => leave('Phòng đã đóng.'));
+  peer.on('open', () => {
+    const conn = peer.connect(hostId, { reliable: true, metadata: { name: myName } });   // kênh tới người chia sẻ
+    conn.on('open', () => clearTimeout(timeout)); wire(addPerson(hostId, 'Người chia sẻ', vStage.camT), conn);
   });
-  vPeer.on('call', call => {                               // máy chia sẻ gửi luồng: kind = 'screen' hoặc 'cam'
-    call.answer();
-    call.on('stream', s => { const el = call.metadata.kind === 'screen' ? vStage.main : vStage.cam;
-      if (el.srcObject !== s) el.srcObject = s; $('#waiting').hidden = true; tryPlay(); });
-  });
-  vPeer.on('error', e => { clearTimeout(timeout); leave(e.type === 'peer-unavailable' ? 'Mã phòng không tồn tại hoặc đã đóng.' : 'Lỗi kết nối: ' + e.type); });
+  peer.on('error', e => { clearTimeout(timeout); leave(e.type === 'peer-unavailable' ? 'Mã phòng không tồn tại hoặc đã đóng.' : 'Lỗi kết nối: ' + e.type); });
 };
-function onMsg(m){
-  if (m.t === 'hello') vStage.set(m.s);                    // bố cục ban đầu
-  if (m.t === 'layout') vStage.place(m.l);                 // người chia sẻ vừa kéo camera
-  if (m.t === 'end') leave('Người chia sẻ đã dừng.');
-  if (m.t === 'full') leave('Phòng đã đủ ' + MAX_VIEWERS + ' thiết bị xem.');
-}
-function tryPlay(){ [vStage.main, vStage.cam].forEach(v => v.play().catch(() => $('#tap').hidden = false)); }  // trình duyệt chặn tiếng -> hiện nút bấm
-$('#btnTap').onclick = () => { vStage.main.muted = vStage.cam.muted = false; $('#tap').hidden = true; tryPlay(); };
-$('#btnMute').onclick = e => { const m = !vStage.main.muted; vStage.main.muted = vStage.cam.muted = m; e.currentTarget.textContent = m ? '🔇 Đã tắt tiếng' : '🔊 Âm thanh'; };
+$('#btnTap').onclick = () => { deaf = false; document.querySelectorAll('video:not([data-self])').forEach(v => { v.muted = false; v.play().catch(() => {}); }); $('#tap').hidden = true; };
+$('#btnMute').onclick = e => { deaf = !deaf; document.querySelectorAll('video:not([data-self])').forEach(v => v.muted = deaf);
+  e.currentTarget.textContent = deaf ? '🔇 Đã tắt tiếng' : '🔊 Âm thanh'; };
 $('#btnFull').onclick = () => { const b = $('#viewBox'); (b.requestFullscreen || b.webkitRequestFullscreen || (() => toast('Thiết bị không hỗ trợ toàn màn hình.'))).call(b); };
 $('#btnLeave').onclick = () => leave();
 function leave(msg){
-  vPeer && vPeer.destroy(); vPeer = null; release(); show(msg ? 'join' : 'home'); if (msg) $('#joinErr').textContent = msg;
+  if (role !== 'viewer' || !peer) return; cleanup(); show(msg ? 'join' : 'home'); if (msg) $('#joinErr').textContent = msg;
 }
 </script>
 </body>
